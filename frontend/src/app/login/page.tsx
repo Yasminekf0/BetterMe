@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
@@ -61,6 +61,10 @@ export default function LoginPage() {
       router.push(ROUTES.DASHBOARD);
     }
   };
+
+  useEffect(() => {
+    console.log("LoginPage render - error:", error, "formError:", formError);
+  }, [error, formError])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 px-4 py-12">
