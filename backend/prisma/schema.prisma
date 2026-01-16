@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -117,8 +117,8 @@ model Scenario {
   buyerPersona     Json
   
   // Objections and ideal responses
-  objections       String[]
-  idealResponses   String[]
+  objections       Json
+  idealResponses   Json
   
   // AI Configuration
   maxTurns         Int        @default(8)
@@ -193,7 +193,7 @@ model Feedback {
   overallScore    Int
   dimensions      Json     // Array of FeedbackDimension
   summary         String   @db.Text
-  recommendations String[]
+  recommendations Json
   createdAt       DateTime @default(now())
 
   @@map("feedbacks")
@@ -250,7 +250,7 @@ model BuyerPersonaTemplate {
   role        String   // e.g., 'CTO', 'Compliance Director'
   company     String
   background  String   @db.Text
-  concerns    String[]
+  concerns    Json
   personality String
   category    String   // e.g., 'Technical', 'Business', 'Procurement'
   isDefault   Boolean  @default(false)
@@ -336,7 +336,7 @@ model StorageConfig {
   // 通用配置
   baseUrl         String?   // CDN或访问域名
   maxFileSize     Int       @default(10485760) // 默认10MB
-  allowedMimeTypes String[] // 允许的文件类型
+  allowedMimeTypes Json // 允许的文件类型
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -361,10 +361,10 @@ model Plugin {
   isActive      Boolean      @default(true)
   isFeatured    Boolean      @default(false)
   config        Json?        // 插件配置模板
-  permissions   String[]     // 所需权限
-  dependencies  String[]     // 依赖其他插件
+  permissions   Json     // 所需权限
+  dependencies  Json     // 依赖其他插件
   changelog     Json?        // 版本更新日志
-  screenshots   String[]     // 截图URL
+  screenshots   Json     // 截图URL
   documentation String?      @db.Text
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
@@ -435,7 +435,7 @@ model Article {
   author      User            @relation("ArticleAuthor", fields: [authorId], references: [id])
   status      ArticleStatus   @default(DRAFT)
   viewCount   Int             @default(0)
-  tags        String[]
+  tags        Json
   seoTitle    String?
   seoDescription String?
   publishedAt DateTime?
@@ -463,7 +463,7 @@ model Notification {
   content     String            @db.Text
   type        NotificationType
   targetType  NotificationTarget
-  targetIds   String[]          // 目标用户ID列表,空表示全部
+  targetIds   Json          // 目标用户ID列表,空表示全部
   isRead      Boolean           @default(false)
   sendAt      DateTime?         // 定时发送时间
   sentAt      DateTime?         // 实际发送时间
@@ -676,7 +676,7 @@ model Role {
   displayName String
   description String?
   isSystem    Boolean   @default(false)  // 系统内置角色
-  permissions String[]  // 权限列表
+  permissions Json  // 权限列表
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
