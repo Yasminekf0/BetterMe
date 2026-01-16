@@ -3,6 +3,8 @@ import { aiService } from './aiService';
 import { aliyunSTTService } from './aliyunSTTService';
 import { prisma } from '../lib/prisma';
 import { Socket } from 'socket.io';
+import OSS from 'ali-oss';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Audio Configuration
@@ -22,6 +24,7 @@ interface RealtimeSession {
   scenarioId: string;
   socket: Socket;
   audioBuffer: Buffer[];
+  fullAudioBuffer: Buffer[];
   totalAudioSize: number;
   isProcessing: boolean;
   turnCount: number;
@@ -53,6 +56,13 @@ class SessionManager {
   // Chunk timeout for STT (2 seconds of silence)
   private CHUNK_TIMEOUT = 2000;
 
+  private ossClient = new OSS({
+    region: process.env.ALIYUN_OSS_REGION,
+    accessKeyId: process.env.ALIYUN_OSS_ACCESS_KEY_ID!,
+    accessKeySecret: process.env.ALIYUN_OSS_ACCESS_KEY_SECRET!,
+    bucket: process.env.ALIYUN_OSS_BUCKET!,
+  });
+
   constructor() {
     // Cleanup stale sessions periodically
     setInterval(() => this.cleanupStaleSessions(), 60000);
@@ -83,6 +93,7 @@ class SessionManager {
         scenarioId,
         socket,
         audioBuffer: [],
+        fullAudioBuffer: [],
         totalAudioSize: 0,
         isProcessing: false,
         turnCount: 0,
@@ -119,6 +130,7 @@ class SessionManager {
    * Buffers audio and triggers STT when buffer is full or on timeout
    */
   async handleAudioChunk(sessionId: string, audioData: Buffer): Promise<void> {
+    console.log("handleAudioChunk called with:", sessionId, audioData.length);
     const session = this.getSession(sessionId);
     if (!session) {
       logger.warn('Audio chunk received for non-existent session', { sessionId });
@@ -126,12 +138,14 @@ class SessionManager {
     }
 
     try {
+      console.log("Appending audio data of size:", audioData.length);
       session.audioBuffer.push(audioData);
+      session.fullAudioBuffer.push(audioData);
       session.totalAudioSize += audioData.length;
       session.lastActivityTime = Date.now();
-
-      // Process when buffer is full
+      // Trigger STT logic when we have ~2 seconds of audio
       if (session.totalAudioSize >= this.MAX_AUDIO_BUFFER_SIZE) {
+        console.log("Processing audio buffer for session:", sessionId);
         await this.processAudioBuffer(sessionId);
       }
     } catch (error) {
@@ -148,6 +162,7 @@ class SessionManager {
    * Sends to Aliyun STT and processes response
    */
   private async processAudioBuffer(sessionId: string): Promise<void> {
+    console.log("processAudioBuffer called for session:", sessionId);
     const session = this.getSession(sessionId);
     if (!session || session.isProcessing || session.audioBuffer.length === 0) {
       return;
@@ -220,11 +235,15 @@ class SessionManager {
         audioSize: audioData.length,
       });
 
-      const result = await aliyunSTTService.transcribe(audioData, {
-        language: 'zh-CN',
-        punctuation: true,
-        modelName: 'general',
-      });
+      const result = {
+        text: "Simulated transcription text",
+        confidence: 0.95,
+      }
+      // const result = await aliyunSTTService.transcribe(audioData, {
+      //   language: 'zh-CN',
+      //   punctuation: true,
+      //   modelName: 'general',
+      // });
 
       logger.info('Aliyun STT response received', {
         sessionId,
@@ -352,14 +371,68 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
    * End a session gracefully
    */
   async endSession(sessionId: string, reason: string = 'normal'): Promise<void> {
+    console.log("endSession called with:", sessionId, reason);
     const session = this.getSession(sessionId);
     if (!session) {
       return;
     }
 
     try {
+      const completeAudio = Buffer.concat(session.fullAudioBuffer);
+      // 2. TODO: Upload completeAudio to Aliyun OSS/S3 here
+      // 2. Upload to Aliyun OSS
+      const filename = `recordings/${session.userId}/${sessionId}-${uuidv4()}.wav`;
+      const uploadResult = await this.ossClient.put(filename, completeAudio);
+      const audioUrl = uploadResult.url;
       // Calculate session duration
       const duration = Date.now() - session.startTime;
+
+      // 3. Save to Media table
+
+      const mediaRecord = await prisma.media.create({
+        data: {
+          name: `Recording-${sessionId}`,
+          originalName: `${sessionId}.wav`,
+          path: filename,
+          url: audioUrl,
+          mimeType: 'audio/wav',
+          size: completeAudio.length,
+          storageType: 'ALIYUN_OSS',
+          bucket: process.env.ALIYUN_OSS_BUCKET,
+          uploadedById: session.userId,
+        }
+      });
+      console.log("Saved media", mediaRecord);
+      // 4. Update Session and Conversation in DB
+      await prisma.session.update({
+        where: { id: sessionId },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date(),
+        },
+      });
+
+      // Update the Conversation record with the recording link
+      console.log("Saving conversation:",
+        {
+        where: { sessionId: sessionId },
+        data: {
+          completedAt: new Date(),
+          summary: "Audio recording saved successfully.", // Placeholder for AI summary
+        },
+      }
+      )
+      await prisma.conversation.update({
+        where: { sessionId: sessionId },
+        data: {
+          completedAt: new Date(),
+          summary: "Audio recording saved successfully.", // Placeholder for AI summary
+          // If you added recordingUrl to Conversation:
+          // recordingUrl: audioUrl 
+        },
+      });
+
+      logger.info('Session archived to OSS', { sessionId, audioUrl });
 
       logger.info('Session ended', {
         sessionId,
@@ -370,23 +443,16 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
         reason,
       });
 
-      // Update session in database
-      await prisma.session.update({
-        where: { id: sessionId },
-        data: {
-          status: 'COMPLETED',
-          completedAt: new Date(),
-        },
-      });
 
       // Notify client
       session.socket.emit('session-ended', {
         reason,
         totalTurns: session.turnCount,
         duration,
+        audioUrl,
       });
 
-      // Remove session
+      session.socket.emit('session-ended', { reason, audioUrl });
       this.sessions.delete(sessionId);
     } catch (error) {
       logger.error('Failed to end session', { sessionId, error });

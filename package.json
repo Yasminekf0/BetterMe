@@ -26,7 +26,12 @@
   "author": "Master Trainer Team",
   "license": "MIT",
   "devDependencies": {
+    "@types/ali-oss": "^6.23.0",
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "ali-oss": "^6.23.0",
+    "install": "^0.13.0",
+    "npm": "^11.7.0"
   }
 }
-

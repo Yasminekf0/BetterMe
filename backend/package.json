@@ -19,6 +19,7 @@
   "dependencies": {
     "@prisma/client": "^5.13.0",
     "@types/node": "^20.12.8",
+    "ali-oss": "^6.23.0",
     "axios": "^1.6.8",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -27,8 +28,10 @@
     "express-rate-limit": "^7.2.0",
     "express-validator": "^7.0.1",
     "helmet": "^7.1.0",
+    "install": "^0.13.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "npm": "^11.7.0",
     "socket.io": "^4.7.2",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",

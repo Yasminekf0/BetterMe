@@ -55,7 +55,6 @@ export function useRealtimeRoleplay(config: UseRealtimeRoleplayConfig) {
   const audioRecorder = useAudioRecorder({
     ...audioConfig,
     onChunk: (audioData) => {
-      console.log("Audio chunk received of size:", audioData);
       handleAudioChunk(audioData);
     },
     onError: (error) => handleAudioError(error),
@@ -73,20 +72,14 @@ export function useRealtimeRoleplay(config: UseRealtimeRoleplayConfig) {
    */
   const connectSession = useCallback(async (data: any) => {
     try {
-      console.log("any is here:", data);
       if (!socketClient.isConnected()) {
         await socketClient.connect();
       }
-      console.log("Socket connected:", socketClient.isConnected());
 
       setState((prev) => ({ ...prev, isConnected: true, error: null }));
       
       // Set up event listeners
       setupSocketListeners();
-      console.log("sending data is here:", {
-        sessionId: data.sessionId,
-        scenarioId: data.scenarioId,
-      });
       // Start realtime session
       socketClient.emit('start-session', {
         sessionId: data.sessionId,
@@ -198,6 +191,7 @@ export function useRealtimeRoleplay(config: UseRealtimeRoleplayConfig) {
         reason: data.reason,
         totalTurns: data.totalTurns,
         duration: data.duration,
+        audioUrl: data.audioUrl,
       });
     });
 
@@ -225,13 +219,13 @@ export function useRealtimeRoleplay(config: UseRealtimeRoleplayConfig) {
    * Handle audio chunk from MediaRecorder
    */
   const handleAudioChunk = useCallback((audioData: Uint8Array) => {
+    console.log("handleAudioChunk called with data size:", audioData.length);
     if (!stateRef.current.isConnected) return;
 
     try {
       // Convert to base64 for transmission
       const audioBase64 = Buffer.from(audioData).toString('base64');
       console.debug(`sessionId: ${sessionId} and [Audio Stream] Sending chunk: ${(audioData.length / 1024).toFixed(2)} KB`);
-
       socketClient.emit('audio-chunk', {
         sessionId,
         audioData: audioBase64,

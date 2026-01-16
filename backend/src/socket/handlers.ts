@@ -79,8 +79,6 @@ export async function handleStartSession(
     }
 
     const { sessionId, scenarioId } = data;
-    console.log('handleStartSession called with:', data);
-    console.log("sessionId:", sessionId, "scenarioId:", scenarioId, "userId:", socket.userId);
 
     // Verify session exists and belongs to user
     const session = await prisma.session.findFirst({
@@ -90,7 +88,6 @@ export async function handleStartSession(
         scenarioId,
       },
     });
-    console.log("Fetched session from DB:", session);
 
     if (!session) {
       socket.emit('error', { message: 'Session not found or unauthorized' });
@@ -138,6 +135,7 @@ export async function handleAudioChunk(
   socket: AuthenticatedSocket,
   data: { sessionId: string; audioData: string; offset: number; totalChunks: number }
 ): Promise<void> {
+  console.log("handleAudioChunk called with:", data.sessionId, data.audioData.length);
   try {
     if (!socket.userId) {
       socket.emit('error', { message: 'Not authenticated' });

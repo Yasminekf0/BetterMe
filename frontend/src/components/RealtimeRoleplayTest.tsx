@@ -40,7 +40,6 @@ export default function RealtimeRoleplayTest() {
       body: JSON.stringify({ scenarioId })
     });
     const newSession = await response.json();
-    console.log("Response from /api/roleplay/start:", newSession.data.id);
 
     // 2. Use the REAL ID returned from your database
     setConfig({

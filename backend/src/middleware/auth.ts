@@ -43,7 +43,6 @@ export async function authenticate(
 ): Promise<void> {
   try {
     let token: string | undefined;
-    console.log('Request Body:', req.body);
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split(' ')[1];

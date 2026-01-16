@@ -10,6 +10,7 @@ import systemRoutes from './system';
 import articleRoutes from './articles';
 import notificationRoutes from './notifications';
 import orderRoutes from './orders';
+import conversationRoutes from './conversations';
 
 const router = Router();
 
@@ -40,6 +41,7 @@ router.use('/system', systemRoutes);
 router.use('/articles', articleRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/orders', orderRoutes);
+router.use('/conversations', conversationRoutes);
 
 export default router;
 

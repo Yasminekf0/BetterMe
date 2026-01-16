@@ -26,7 +26,6 @@ export function useAudioRecorder(config: AudioRecorderConfig = {}) {
     onChunk,
     onError,
   } = config;
-  let n = 0
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -38,16 +37,12 @@ export function useAudioRecorder(config: AudioRecorderConfig = {}) {
   const [volume, setVolume] = useState(0);
   const [error, setError] = useState<Error | null>(null);
 
-  // useEffect(() => {
-  //   // console.log("MediaRecorder Ref Updated:", mediaRecorderRef.current);
-  // }, [mediaRecorderRef])
 
   /**
    * Start audio recording
    */
   const startRecording = useCallback(async () => {
     try {
-      console.log("Starting audio recording...");
       // Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -84,7 +79,7 @@ export function useAudioRecorder(config: AudioRecorderConfig = {}) {
       const chunks: Blob[] = [];
 
       mediaRecorder.ondataavailable = (event) => {
-        console.log("ondataavailable event:", event.data);
+        // console.log("ondataavailable event:", event.data);
         if (event.data.size > 0) {
           chunks.push(event.data);
           console.debug("Raw Blob received from MediaRecorder:", event.data.size, "bytes");
@@ -93,12 +88,8 @@ export function useAudioRecorder(config: AudioRecorderConfig = {}) {
 
       // Emit chunks at regular intervals
       const chunkData = () => {
-        // n += 1;
-        // console.log("processing chunk data... cycle:", n);
-        // console.log("state is:", mediaRecorderRef.current?.state, "onChunk:", onChunk , "Emitting audio chunk, number of blobs:", chunks.length);
 
         if (mediaRecorderRef.current?.state === 'recording' && chunks.length > 0) {
-          console.log("state is:", mediaRecorderRef.current?.state, "onChunk:", onChunk , "Emitting audio chunk, number of blobs:", chunks.length);
           const blob = new Blob(chunks, { type: 'audio/webm' });
 
           blob.arrayBuffer().then((buffer) => {
@@ -112,7 +103,6 @@ export function useAudioRecorder(config: AudioRecorderConfig = {}) {
         }
 
         // Schedule next chunk emission
-        // console.log("Scheduling next chunk processing call in", chunkInterval, "ms", "current state is:", mediaRecorderRef.current?.state);
         if (mediaRecorderRef.current?.state === 'recording') {
           chunkTimeoutRef.current = setTimeout(chunkData, chunkInterval);
         }
@@ -121,7 +111,6 @@ export function useAudioRecorder(config: AudioRecorderConfig = {}) {
       // Start chunk emission
       // chunkTimeoutRef.current = setTimeout(chunkData, chunkInterval);
       setTimeout(() => {
-        // console.log("Initial chunk processing call", chunkInterval);
         chunkData();
       }, chunkInterval);
 
