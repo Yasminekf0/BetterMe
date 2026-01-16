@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRealtimeRoleplay } from '@/lib/hooks/useRealtimeRoleplay';
+import { useRealtimeRoleplay } from '@/hooks/useRealtimeRoleplay';
+import { useState } from 'react';
 
 export default function RealtimeRoleplayTest() {
-  const [scenarioId, setScenarioId] = useState('');
-  const realtimeSession = useRealtimeRoleplay();
+  const [scenarioId, setScenarioId] = useState('aba1a74a-f308-11f0-a033-00163e153d4e');
+  const [config, setConfig] = useState({
+    sessionId: `session-${Date.now()}`,
+    scenarioId: 'aba1a74a-f308-11f0-a033-00163e153d4e',
+  });
   
   const {
     sessionId,
@@ -23,26 +26,44 @@ export default function RealtimeRoleplayTest() {
     startRecording,
     stopRecording,
     endSession,
-  } = realtimeSession;
+  } = useRealtimeRoleplay(config);
+
 
   const handleConnect = async () => {
-    if (!scenarioId.trim()) {
-      alert('Please enter a scenario ID');
-      return;
-    }
-    connectSession(scenarioId);
+    try {
+    // 1. Call your actual backend API to create a session record in Prisma
+    const response = await fetch('/api/roleplay/start', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json', // Explicitly set this
+      },
+      body: JSON.stringify({ scenarioId })
+    });
+    const newSession = await response.json();
+    console.log("Response from /api/roleplay/start:", newSession.data.id);
+
+    // 2. Use the REAL ID returned from your database
+    setConfig({
+      sessionId: newSession.data.id, 
+      scenarioId,
+    });
+    connectSession({ sessionId: newSession.data.id, scenarioId });
+    // await connectSession({ sessionId: newSession.id, scenarioId });
+  } catch (err) {
+    console.error("Failed to initialize session record", err);
+  }
   };
 
   const handleToggleRecording = async () => {
     if (isRecording) {
-      stopRecording();
+      await stopRecording();
     } else {
-      startRecording();
+      await startRecording();
     }
   };
 
   const handleEndSession = async () => {
-    endSession();
+    await endSession();
     setScenarioId('');
   };
 
@@ -130,6 +151,17 @@ export default function RealtimeRoleplayTest() {
             </button>
           )}
         </div>
+        <button
+              onClick={handleToggleRecording}
+              // disabled={!isConnected}
+              className={`w-full px-6 py-3 font-semibold rounded transition ${
+                isRecording
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {isRecording ? '⏹️ Stop Recording' : '🔴 Start Recording'}
+            </button>
 
         {/* Recording Section */}
         {isConnected && (

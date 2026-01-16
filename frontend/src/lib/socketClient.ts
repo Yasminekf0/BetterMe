@@ -1,5 +1,5 @@
-import { io, Socket } from 'socket.io-client';
-import Cookies from 'js-cookie';
+import { io, Socket } from "socket.io-client";
+import Cookies from "js-cookie";
 
 interface SocketClientConfig {
   url?: string;
@@ -11,7 +11,8 @@ class SocketClient {
   private url: string;
 
   constructor(config: SocketClientConfig = {}) {
-    this.url = config.url || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    this.url = "http://localhost:3001";
+    //  || config.url || process.env.NEXT_PUBLIC_API_URL;
   }
 
   /**
@@ -20,13 +21,12 @@ class SocketClient {
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const token = Cookies.get('token');
+        const token = Cookies.get("token");
 
         if (!token) {
-          reject(new Error('No authentication token available'));
+          reject(new Error("No authentication token available"));
           return;
         }
-
         this.socket = io(this.url, {
           auth: {
             token,
@@ -35,22 +35,22 @@ class SocketClient {
           reconnectionDelay: 1000,
           reconnectionDelayMax: 5000,
           reconnectionAttempts: 5,
-          transports: ['websocket', 'polling'],
+          transports: ["websocket", "polling"],
           withCredentials: true,
         });
 
-        this.socket.on('connected', () => {
-          console.log('Socket connected');
+        this.socket.on("connected", () => {
+          console.log("Socket connected");
           resolve();
         });
 
-        this.socket.on('error', (error) => {
-          console.error('Socket error:', error);
+        this.socket.on("error", (error) => {
+          console.error("Socket error:", error);
           reject(error);
         });
 
-        this.socket.on('connect_error', (error) => {
-          console.error('Connection error:', error);
+        this.socket.on("connect_error", (error) => {
+          console.error("Connection error:", error);
           reject(error);
         });
       } catch (error) {
@@ -88,7 +88,7 @@ class SocketClient {
    */
   emit(event: string, data?: any): void {
     if (!this.socket) {
-      throw new Error('Socket not connected');
+      throw new Error("Socket not connected");
     }
     this.socket.emit(event, data);
   }
@@ -98,7 +98,7 @@ class SocketClient {
    */
   on(event: string, callback: (...args: any[]) => void): void {
     if (!this.socket) {
-      throw new Error('Socket not connected');
+      throw new Error("Socket not connected");
     }
     this.socket.on(event, callback);
   }
@@ -108,7 +108,7 @@ class SocketClient {
    */
   once(event: string, callback: (...args: any[]) => void): void {
     if (!this.socket) {
-      throw new Error('Socket not connected');
+      throw new Error("Socket not connected");
     }
     this.socket.once(event, callback);
   }
@@ -118,7 +118,7 @@ class SocketClient {
    */
   off(event: string, callback?: (...args: any[]) => void): void {
     if (!this.socket) {
-      throw new Error('Socket not connected');
+      throw new Error("Socket not connected");
     }
     this.socket.off(event, callback);
   }

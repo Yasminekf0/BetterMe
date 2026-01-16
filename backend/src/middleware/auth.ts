@@ -42,17 +42,32 @@ export async function authenticate(
   next: NextFunction
 ): Promise<void> {
   try {
-    // Get token from header
+    let token: string | undefined;
+    console.log('Request Body:', req.body);
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+
+    if (!token && req.headers.cookie) {
+      // Manual parsing of the cookie string
+      const cookieToken = req.headers.cookie
+        .split('; ')
+        .find(row => row.startsWith('token='))
+        ?.split('=')[1];
+        
+      token = cookieToken;
+    }
+    // Get token from header
+    const cookies = req.headers.cookie;
+    if (!token) {
+      console.log("Authentication failed: No token found in headers or cookies", req.headers);
       res.status(401).json({
         success: false,
         error: 'Authentication required',
       });
       return;
     }
-
-    const token = authHeader.substring(7);
 
     // Verify token
     const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
@@ -163,7 +178,9 @@ export async function optionalAuth(
  */
 export function authorize(...allowedRoles: UserRoleType[]) {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
+    console.log("Authorizing user with roles:", allowedRoles, "and user:", req.user);
     if (!req.user) {
+      console.log("Authorization failed: no user attached to request with roles:", allowedRoles, "user:", req.user);
       res.status(401).json({
         success: false,
         error: 'Authentication required',

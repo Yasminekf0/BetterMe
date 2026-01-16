@@ -31,7 +31,7 @@ export function MainLayout({ children }: MainLayoutProps) {
     const isPublicRoute = publicRoutes.includes(pathname);
 
     if (!isLoading && !isAuthenticated && !isPublicRoute) {
-      router.push(ROUTES.LOGIN);
+      // router.push(ROUTES.LOGIN);
     }
   }, [isAuthenticated, isLoading, pathname, router]);
 

@@ -19,7 +19,17 @@ interface AuthenticatedSocket extends Socket {
 export async function handleConnection(socket: AuthenticatedSocket): Promise<void> {
   try {
     // Extract token from handshake headers
-    const token = socket.handshake.headers.authorization?.split(' ')[1];
+    let token = socket.handshake.headers.authorization?.split(' ')[1];
+
+    if (!token && socket.handshake.headers.cookie) {
+      const cookies = socket.handshake.headers.cookie.split(';').reduce((acc, curr) => {
+        const [key, value] = curr.trim().split('=');
+        acc[key] = value;
+        return acc;
+      }, {} as Record<string, string>);
+      
+      token = cookies['token']; // Matches 'token=' in your logs
+    }
 
     if (!token) {
       socket.emit('error', { message: 'Missing authentication token' });
@@ -69,6 +79,8 @@ export async function handleStartSession(
     }
 
     const { sessionId, scenarioId } = data;
+    console.log('handleStartSession called with:', data);
+    console.log("sessionId:", sessionId, "scenarioId:", scenarioId, "userId:", socket.userId);
 
     // Verify session exists and belongs to user
     const session = await prisma.session.findFirst({
@@ -78,6 +90,7 @@ export async function handleStartSession(
         scenarioId,
       },
     });
+    console.log("Fetched session from DB:", session);
 
     if (!session) {
       socket.emit('error', { message: 'Session not found or unauthorized' });

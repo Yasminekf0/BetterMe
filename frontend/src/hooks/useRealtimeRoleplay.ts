@@ -36,6 +36,8 @@ interface UseRealtimeRoleplayConfig extends AudioRecorderConfig {
  */
 export function useRealtimeRoleplay(config: UseRealtimeRoleplayConfig) {
   const { sessionId, scenarioId, ...audioConfig } = config;
+  const mediaRecorderRef = useRef(null);
+  
 
   const [state, setState] = useState<RealtimeSessionState>({
     sessionId: null,
@@ -52,7 +54,10 @@ export function useRealtimeRoleplay(config: UseRealtimeRoleplayConfig) {
 
   const audioRecorder = useAudioRecorder({
     ...audioConfig,
-    onChunk: (audioData) => handleAudioChunk(audioData),
+    onChunk: (audioData) => {
+      console.log("Audio chunk received of size:", audioData);
+      handleAudioChunk(audioData);
+    },
     onError: (error) => handleAudioError(error),
   });
 
@@ -61,27 +66,34 @@ export function useRealtimeRoleplay(config: UseRealtimeRoleplayConfig) {
     stateRef.current = state;
   }, [state]);
 
+  
+
   /**
    * Connect to WebSocket server
    */
-  const connectSession = useCallback(async () => {
+  const connectSession = useCallback(async (data: any) => {
     try {
+      console.log("any is here:", data);
       if (!socketClient.isConnected()) {
         await socketClient.connect();
       }
+      console.log("Socket connected:", socketClient.isConnected());
 
       setState((prev) => ({ ...prev, isConnected: true, error: null }));
-
+      
       // Set up event listeners
       setupSocketListeners();
-
+      console.log("sending data is here:", {
+        sessionId: data.sessionId,
+        scenarioId: data.scenarioId,
+      });
       // Start realtime session
       socketClient.emit('start-session', {
-        sessionId,
-        scenarioId,
+        sessionId: data.sessionId,
+        scenarioId: data.scenarioId,
       });
 
-      logger.info('Starting realtime session', { sessionId, scenarioId });
+      logger.info('Starting realtime session', { sessionId: data.sessionId, scenarioId });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setState((prev) => ({ ...prev, error: message, isConnected: false }));
@@ -89,6 +101,7 @@ export function useRealtimeRoleplay(config: UseRealtimeRoleplayConfig) {
       logger.error('Failed to connect session', { error: message });
     }
   }, [sessionId, scenarioId]);
+
 
   /**
    * Setup Socket.io event listeners
@@ -217,6 +230,7 @@ export function useRealtimeRoleplay(config: UseRealtimeRoleplayConfig) {
     try {
       // Convert to base64 for transmission
       const audioBase64 = Buffer.from(audioData).toString('base64');
+      console.debug(`sessionId: ${sessionId} and [Audio Stream] Sending chunk: ${(audioData.length / 1024).toFixed(2)} KB`);
 
       socketClient.emit('audio-chunk', {
         sessionId,
@@ -285,12 +299,11 @@ export function useRealtimeRoleplay(config: UseRealtimeRoleplayConfig) {
       if (state.isRecording) {
         stopRecording();
       }
-
       if (state.isConnected) {
         socketClient.disconnect();
       }
     };
-  }, [state.isRecording, state.isConnected, stopRecording]);
+  }, []);
 
   return {
     ...state,
