@@ -27,12 +27,22 @@ export const config = {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
 
-  // AI API Configuration - Supports multiple AI models
+  // AI API Configuration - Supports Aliyun Bailian (DashScope) models
+  // AI API配置 - 支持阿里云百炼（DashScope）大模型
   ai: {
-    baseUrl: process.env.AI_API_BASE_URL || 'https://api.gpt-best.com/v1',
-    apiKey: process.env.AI_API_KEY || '',
-    defaultModel: process.env.AI_DEFAULT_MODEL || 'gpt-4o-mini',
-    timeout: parseInt(process.env.AI_TIMEOUT || '30000', 10),
+    // Base URL for Aliyun Bailian DashScope (OpenAI compatible mode)
+    // 阿里云百炼 DashScope 基础URL（OpenAI兼容模式）
+    baseUrl: process.env.AI_API_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    // API Key from Aliyun Bailian console
+    // 从阿里云百炼控制台获取的API Key
+    apiKey: process.env.DASHSCOPE_API_KEY || process.env.AI_API_KEY || '',
+    // Default model for text chat / 默认文本对话模型
+    defaultModel: process.env.AI_DEFAULT_MODEL || 'qwen-plus',
+    // Default TTS model / 默认TTS语音合成模型
+    defaultTTSModel: process.env.AI_DEFAULT_TTS_MODEL || 'cosyvoice-v1',
+    // Default embedding model / 默认向量模型
+    defaultEmbeddingModel: process.env.AI_DEFAULT_EMBEDDING_MODEL || 'text-embedding-v3',
+    timeout: parseInt(process.env.AI_TIMEOUT || '60000', 10),
     maxTokens: parseInt(process.env.AI_MAX_TOKENS || '2000', 10),
     temperature: parseFloat(process.env.AI_TEMPERATURE || '0.7'),
   },
