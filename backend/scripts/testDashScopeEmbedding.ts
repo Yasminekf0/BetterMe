@@ -10,7 +10,7 @@ async function run() {
   const res = await axios.post(
     "https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding",
     {
-      model: "qwen2.5-vl-embedding",
+      model: "text-embedding-v2",
       input: {
         texts: ["hello world"]
       }
