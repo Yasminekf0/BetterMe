@@ -219,7 +219,7 @@ export function useRealtimeRoleplay(config: UseRealtimeRoleplayConfig) {
    * Handle audio chunk from MediaRecorder
    */
   const handleAudioChunk = useCallback((audioData: Uint8Array) => {
-    console.log("handleAudioChunk called with data size:", audioData.length);
+    console.log("useRealTimeRolePlay - handleAudioChunk called with data size:", audioData.length);
     if (!stateRef.current.isConnected) return;
 
     try {

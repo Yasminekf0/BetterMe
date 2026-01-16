@@ -130,7 +130,7 @@ class SessionManager {
    * Buffers audio and triggers STT when buffer is full or on timeout
    */
   async handleAudioChunk(sessionId: string, audioData: Buffer): Promise<void> {
-    console.log("handleAudioChunk called with:", sessionId, audioData.length);
+    console.log("(sessionManager - handleAudioChunk called with:", sessionId, audioData.length);
     const session = this.getSession(sessionId);
     if (!session) {
       logger.warn('Audio chunk received for non-existent session', { sessionId });
@@ -371,7 +371,7 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
    * End a session gracefully
    */
   async endSession(sessionId: string, reason: string = 'normal'): Promise<void> {
-    console.log("endSession called with:", sessionId, reason);
+    console.log("sessionManager - endSession called with:", sessionId, reason);
     const session = this.getSession(sessionId);
     if (!session) {
       return;
@@ -381,6 +381,7 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
       const completeAudio = Buffer.concat(session.fullAudioBuffer);
       // 2. TODO: Upload completeAudio to Aliyun OSS/S3 here
       // 2. Upload to Aliyun OSS
+      console.log("Uploading to aliyun complete audio of size:", completeAudio.length);
       const filename = `recordings/${session.userId}/${sessionId}-${uuidv4()}.wav`;
       const uploadResult = await this.ossClient.put(filename, completeAudio);
       const audioUrl = uploadResult.url;
@@ -388,7 +389,7 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
       const duration = Date.now() - session.startTime;
 
       // 3. Save to Media table
-
+      
       const mediaRecord = await prisma.media.create({
         data: {
           name: `Recording-${sessionId}`,

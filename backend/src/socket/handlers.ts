@@ -135,7 +135,7 @@ export async function handleAudioChunk(
   socket: AuthenticatedSocket,
   data: { sessionId: string; audioData: string; offset: number; totalChunks: number }
 ): Promise<void> {
-  console.log("handleAudioChunk called with:", data.sessionId, data.audioData.length);
+  console.log("(handlers - handleAudioChunk called with:", data.sessionId, data.audioData.length);
   try {
     if (!socket.userId) {
       socket.emit('error', { message: 'Not authenticated' });
@@ -169,6 +169,7 @@ export async function handleEndSession(
   socket: AuthenticatedSocket,
   data: { sessionId: string }
 ): Promise<void> {
+  console.log("handleEndSession called with:", data.sessionId);
   try {
     if (!socket.userId) {
       socket.emit('error', { message: 'Not authenticated' });
@@ -183,7 +184,7 @@ export async function handleEndSession(
       socket.emit('error', { message: 'Invalid session' });
       return;
     }
-
+    console.log("Ending session:", sessionId);
     await sessionManager.endSession(sessionId, 'user_ended');
     socket.leave(`session:${sessionId}`);
 
