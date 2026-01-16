@@ -217,15 +217,20 @@ model FollowUpEmail {
 }
 
 // AI Model Configuration
+// AI模型配置 - 支持多个AI提供商
 model AIModel {
   id          String   @id @default(uuid())
   modelId     String   @unique
   name        String
   provider    String
   description String?
+  // API Endpoint - API接口地址 (e.g., https://api.openai.com/v1)
+  apiEndpoint String?
+  // API Key - API密钥 (encrypted storage recommended / 建议加密存储)
+  apiKey      String?  @db.Text
   isDefault   Boolean  @default(false)
   isActive    Boolean  @default(true)
-  config      Json?    // Additional configuration
+  config      Json?    // Additional configuration / 附加配置
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { authenticate, adminOnly, trainerOrAdmin, AuthRequest } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
 import { logger } from '../utils/logger';
-import { aiService } from '../services/aiService';
+import { aiService, AIModelType } from '../services/aiService';
 import bcrypt from 'bcryptjs';
 import {
   getSettings,
@@ -587,32 +587,90 @@ router.delete('/users/:id', adminOnly, async (req: AuthRequest, res: Response) =
 });
 
 /**
- * Get Available AI Models (basic - includes service defaults)
+ * Get Available AI Models (includes service defaults and database models)
+ * 获取可用AI模型（包含服务默认模型和数据库模型）
  * GET /api/admin/ai-models/available
+ * 
+ * Supports Aliyun Bailian model types / 支持阿里云百炼模型类型:
+ * - CHAT: Text chat models (文本对话模型)
+ * - TTS: Text-to-Speech models (语音合成模型)
+ * - EMBEDDING: Vector/Embedding models (向量模型)
+ * 
+ * Query params / 查询参数:
+ * - type: Optional filter by model type / 可选按模型类型筛选
  */
 router.get('/ai-models/available', trainerOrAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    // Get models from AI service
-    const models = aiService.getAvailableModels();
+    const { type } = req.query;
+
+    // Validate type if provided / 验证类型（如果提供）
+    const validTypes = Object.values(AIModelType);
+    if (type && !validTypes.includes(type as AIModelType)) {
+      res.status(400).json({
+        success: false,
+        error: `Invalid type. Must be one of: ${validTypes.join(', ')} / 无效的类型，必须是以下之一: ${validTypes.join(', ')}`,
+      });
+      return;
+    }
+
+    // Get models from AI service / 从AI服务获取模型
+    let defaultModels = aiService.getAvailableModels();
+    
+    // Filter by type if specified / 如果指定则按类型筛选
+    if (type) {
+      defaultModels = aiService.getModelsByType(type as AIModelType);
+    }
+
+    // Group default models by type / 按类型分组默认模型
+    const groupedDefaultModels = {
+      chat: defaultModels.filter(m => m.type === AIModelType.CHAT),
+      tts: defaultModels.filter(m => m.type === AIModelType.TTS),
+      embedding: defaultModels.filter(m => m.type === AIModelType.EMBEDDING),
+    };
 
     // Also get any custom models from database
+    // 同时从数据库获取自定义模型
     const dbModels = await prisma.aIModel.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
     });
 
+    // Group database models by type / 按类型分组数据库模型
+    const groupedDbModels = {
+      chat: dbModels.filter(m => {
+        const config = m.config as Record<string, unknown> | null;
+        return config?.modelType === AIModelType.CHAT || aiService.detectModelType(m.modelId) === AIModelType.CHAT;
+      }),
+      tts: dbModels.filter(m => {
+        const config = m.config as Record<string, unknown> | null;
+        return config?.modelType === AIModelType.TTS || aiService.detectModelType(m.modelId) === AIModelType.TTS;
+      }),
+      embedding: dbModels.filter(m => {
+        const config = m.config as Record<string, unknown> | null;
+        return config?.modelType === AIModelType.EMBEDDING || aiService.detectModelType(m.modelId) === AIModelType.EMBEDDING;
+      }),
+    };
+
     res.json({
       success: true,
       data: {
-        defaultModels: models,
+        // All models / 所有模型
+        defaultModels,
         customModels: dbModels,
+        // Grouped by type / 按类型分组
+        byType: {
+          default: groupedDefaultModels,
+          custom: groupedDbModels,
+        },
+        // Available model types / 可用模型类型
+        modelTypes: validTypes,
       },
     });
   } catch (error) {
-    logger.error('Get AI models error', { error });
+    logger.error('Get AI models error / 获取AI模型错误', { error });
     res.status(500).json({
       success: false,
-      error: 'Failed to get AI models',
+      error: 'Failed to get AI models / 获取AI模型失败',
     });
   }
 });

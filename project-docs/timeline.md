@@ -2,6 +2,92 @@
 
 ## 版本历史 / Version History
 
+### v1.2.1 (2026-01-16) - AI Model API Configuration / AI模型API配置独立化
+
+**新增功能 / New Features:**
+
+1. **AI模型独立API配置支持 / Independent API Configuration for AI Models**
+   - 每个AI模型可配置独立的 `apiEndpoint` (API接口地址)
+   - 每个AI模型可配置独立的 `apiKey` (API密钥)
+   - 支持不同AI提供商（OpenAI, Anthropic, DeepSeek, Alibaba等）同时使用
+   - 未配置独立API时自动回退到全局配置
+
+2. **AI服务层增强 / AI Service Layer Enhancement**
+   - `createClient()`: 支持创建带有特定API配置的客户端
+   - `getClientForModel()`: 根据模型配置获取对应的API客户端
+   - `chatCompletion()`: 支持传入模型特定的API配置
+   - `generateEmbedding()`: 支持传入模型特定的API配置
+   - `textToSpeech()`: 支持传入模型特定的API配置
+   - `testModelConnection()`: 支持使用模型特定的API配置测试连接
+
+3. **管理后台AI模型管理优化 / Admin AI Model Management Enhancement**
+   - 创建模型时支持填写 API Endpoint 和 API Key
+   - 更新模型时支持修改 API Endpoint 和 API Key
+   - 列表显示时API Key自动遮蔽（只显示前8位+****）
+   - 测试模型连接时使用模型自带的API配置
+   - 直接测试接口支持传入自定义API配置
+
+4. **安全性增强 / Security Enhancement**
+   - API Key在返回给前端时自动遮蔽
+   - 数据库存储使用 `@db.Text` 支持长密钥
+
+**数据库变更 / Database Changes:**
+- `AIModel` 表新增字段：
+  - `apiEndpoint`: API接口地址 (可选)
+  - `apiKey`: API密钥 (可选，Text类型)
+
+**修改文件 / Modified Files:**
+- `backend/prisma/schema.prisma` - 添加 apiEndpoint, apiKey 字段
+- `backend/src/services/aiService.ts` - 重构支持模型特定API配置
+- `backend/src/controllers/adminController.ts` - 更新模型CRUD和测试逻辑
+
+**迁移说明 / Migration Notes:**
+- 需要运行 `npx prisma migrate dev` 来应用数据库迁移
+- 现有模型将自动使用全局配置（无需手动迁移数据）
+
+---
+
+### v1.2.0 (2026-01-16) - Aliyun Bailian AI Integration / 阿里云百炼大模型集成
+
+**新增功能 / New Features:**
+
+1. **阿里云百炼大模型支持 / Aliyun Bailian Model Support**
+   - 集成阿里云百炼（DashScope）API
+   - 支持OpenAI兼容模式调用
+   - Base URL: `https://dashscope.aliyuncs.com/compatible-mode/v1`
+   
+2. **多类型AI模型支持 / Multi-type AI Model Support**
+   - CHAT: 文本对话模型 (qwen-max, qwen-plus, qwen-turbo等)
+   - TTS: 文本转语音模型 (cosyvoice-v1, sambert等)
+   - EMBEDDING: 向量模型 (text-embedding-v3等)
+   
+3. **AI服务层优化 / AI Service Layer Enhancement**
+   - `generateEmbedding()`: 文本向量化接口
+   - `textToSpeech()`: TTS语音合成接口
+   - `detectModelType()`: 自动检测模型类型
+   - `getEndpointForModelType()`: 根据模型类型获取API端点
+   - `testModelConnection()`: 支持按模型类型测试连接
+   
+4. **管理后台AI模型管理优化 / Admin AI Model Management Enhancement**
+   - 创建模型时自动检测模型类型
+   - 支持按模型类型筛选可用模型
+   - 模型测试支持不同类型（对话/TTS/向量）
+   - 返回按类型分组的模型列表
+
+**配置变更 / Configuration Changes:**
+- 新增环境变量 `DASHSCOPE_API_KEY`: 阿里云百炼API密钥
+- 新增环境变量 `AI_DEFAULT_TTS_MODEL`: 默认TTS模型
+- 新增环境变量 `AI_DEFAULT_EMBEDDING_MODEL`: 默认向量模型
+- 默认Base URL变更为阿里云百炼
+
+**修改文件 / Modified Files:**
+- `backend/src/config/index.ts` - 添加百炼配置
+- `backend/src/services/aiService.ts` - 重构AI服务支持多类型模型
+- `backend/src/controllers/adminController.ts` - 更新模型创建/测试逻辑
+- `backend/src/routes/admin.ts` - 更新路由支持模型类型筛选
+
+---
+
 ### v1.1.0 (2026-01-14) - Admin System Enhancement
 
 **新增功能 / New Features:**

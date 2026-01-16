@@ -4,7 +4,7 @@ import { logger } from '../utils/logger';
 import { AuthRequest } from '../middleware/auth';
 import settingsService from '../services/settingsService';
 import operationLogService, { OperationType, TargetType } from '../services/operationLogService';
-import { aiService } from '../services/aiService';
+import { aiService, AIModelType } from '../services/aiService';
 
 /**
  * Admin Controller
@@ -379,6 +379,7 @@ export async function deletePersonaTemplate(req: AuthRequest, res: Response): Pr
 
 /**
  * Get All AI Models
+ * 获取所有AI模型
  * GET /api/admin/ai-models
  */
 export async function getAIModels(req: AuthRequest, res: Response): Promise<void> {
@@ -387,36 +388,67 @@ export async function getAIModels(req: AuthRequest, res: Response): Promise<void
       orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
     });
 
+    // Mask API keys for security / 为安全起见遮蔽API密钥
+    const maskedModels = models.map(model => ({
+      ...model,
+      apiKey: model.apiKey ? `${model.apiKey.substring(0, 8)}****` : null,
+    }));
+
     res.json({
       success: true,
-      data: models,
+      data: maskedModels,
     });
   } catch (error) {
-    logger.error('Get AI models error', { error });
+    logger.error('Get AI models error / 获取AI模型错误', { error });
     res.status(500).json({
       success: false,
-      error: 'Failed to get AI models',
+      error: 'Failed to get AI models / 获取AI模型失败',
     });
   }
 }
 
 /**
  * Create AI Model
+ * 创建AI模型
  * POST /api/admin/ai-models
+ * 
+ * Supports multiple AI providers / 支持多个AI提供商:
+ * - OpenAI, Anthropic, DeepSeek, Alibaba (Qwen), etc.
+ * 
+ * Supports model types / 支持的模型类型:
+ * - CHAT: Text chat models (文本对话模型)
+ * - TTS: Text-to-Speech models (语音合成模型)
+ * - EMBEDDING: Vector/Embedding models (向量模型)
  */
 export async function createAIModel(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { modelId, name, provider, description, isDefault, config } = req.body;
+    const { modelId, name, provider, description, isDefault, config, modelType, apiEndpoint, apiKey } = req.body;
 
+    // Validate required fields / 验证必填字段
     if (!modelId || !name || !provider) {
       res.status(400).json({
         success: false,
-        error: 'Model ID, name, and provider are required',
+        error: 'Model ID, name, and provider are required / 模型ID、名称和提供商是必填项',
       });
       return;
     }
 
+    // Validate model type if provided / 验证模型类型（如果提供）
+    const validModelTypes = Object.values(AIModelType);
+    if (modelType && !validModelTypes.includes(modelType)) {
+      res.status(400).json({
+        success: false,
+        error: `Invalid model type. Must be one of: ${validModelTypes.join(', ')} / 无效的模型类型，必须是以下之一: ${validModelTypes.join(', ')}`,
+      });
+      return;
+    }
+
+    // Auto-detect model type from modelId if not provided
+    // 如果未提供，从modelId自动检测模型类型
+    const detectedType = modelType || aiService.detectModelType(modelId);
+
     // If setting as default, unset other defaults
+    // 如果设置为默认，取消其他默认设置
     if (isDefault) {
       await prisma.aIModel.updateMany({
         where: { isDefault: true },
@@ -430,44 +462,62 @@ export async function createAIModel(req: AuthRequest, res: Response): Promise<vo
         name,
         provider,
         description,
+        // API Endpoint - API接口地址 (optional, falls back to global config if not set)
+        // API接口地址（可选，未设置时使用全局配置）
+        apiEndpoint: apiEndpoint || null,
+        // API Key - API密钥 (optional, falls back to global config if not set)
+        // API密钥（可选，未设置时使用全局配置）
+        apiKey: apiKey || null,
         isDefault: isDefault || false,
-        config: config || undefined,
+        config: {
+          ...((config as object) || {}),
+          modelType: detectedType,
+          // Store endpoint type for routing / 存储端点类型用于路由
+          endpointType: aiService.getEndpointForModelType(detectedType as AIModelType),
+        },
       },
     });
 
-    // Log operation
+    // Log operation / 记录操作
     await operationLogService.logOperation({
       userId: req.user!.id,
       operationType: OperationType.CREATE,
       targetType: TargetType.AI_MODEL,
       targetId: model.id,
-      description: `Created AI model: ${name}`,
+      description: `Created AI model / 创建AI模型: ${name} (${detectedType})`,
       req,
     });
 
+    // Return response without exposing full API key / 返回响应时不暴露完整API Key
     res.status(201).json({
       success: true,
-      data: model,
+      data: {
+        ...model,
+        // Mask API key for security / 为安全起见遮蔽API Key
+        apiKey: model.apiKey ? `${model.apiKey.substring(0, 8)}****` : null,
+      },
     });
   } catch (error) {
-    logger.error('Create AI model error', { error });
+    logger.error('Create AI model error / 创建AI模型错误', { error });
     res.status(500).json({
       success: false,
-      error: 'Failed to create AI model',
+      error: 'Failed to create AI model / 创建AI模型失败',
     });
   }
 }
 
 /**
  * Update AI Model
+ * 更新AI模型
  * PUT /api/admin/ai-models/:id
  */
 export async function updateAIModel(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { id } = req.params;
-    const { name, provider, description, isDefault, isActive, config } = req.body;
+    const { name, provider, description, isDefault, isActive, config, apiEndpoint, apiKey } = req.body;
 
     // If setting as default, unset other defaults
+    // 如果设置为默认，取消其他默认设置
     if (isDefault) {
       await prisma.aIModel.updateMany({
         where: { isDefault: true, id: { not: id } },
@@ -484,28 +534,36 @@ export async function updateAIModel(req: AuthRequest, res: Response): Promise<vo
         ...(isDefault !== undefined && { isDefault }),
         ...(isActive !== undefined && { isActive }),
         ...(config !== undefined && { config }),
+        // Update API Endpoint if provided / 如果提供则更新API接口地址
+        ...(apiEndpoint !== undefined && { apiEndpoint: apiEndpoint || null }),
+        // Update API Key if provided / 如果提供则更新API密钥
+        ...(apiKey !== undefined && { apiKey: apiKey || null }),
       },
     });
 
-    // Log operation
+    // Log operation / 记录操作
     await operationLogService.logOperation({
       userId: req.user!.id,
       operationType: OperationType.UPDATE,
       targetType: TargetType.AI_MODEL,
       targetId: id,
-      description: `Updated AI model: ${model.name}`,
+      description: `Updated AI model / 更新AI模型: ${model.name}`,
       req,
     });
 
     res.json({
       success: true,
-      data: model,
+      data: {
+        ...model,
+        // Mask API key for security / 为安全起见遮蔽API Key
+        apiKey: model.apiKey ? `${model.apiKey.substring(0, 8)}****` : null,
+      },
     });
   } catch (error) {
-    logger.error('Update AI model error', { error });
+    logger.error('Update AI model error / 更新AI模型错误', { error });
     res.status(500).json({
       success: false,
-      error: 'Failed to update AI model',
+      error: 'Failed to update AI model / 更新AI模型失败',
     });
   }
 }
@@ -785,103 +843,169 @@ export async function exportStatistics(req: AuthRequest, res: Response): Promise
   }
 }
 
-// ==================== AI Model Testing ====================
+// ==================== AI Model Testing / AI模型测试 ====================
 
 /**
  * Test AI Model Connection
+ * 测试AI模型连接
  * POST /api/admin/ai-models/:id/test
+ * 
+ * Supports testing different model types / 支持测试不同模型类型:
+ * - CHAT: Tests text generation / 测试文本生成
+ * - TTS: Tests speech synthesis / 测试语音合成
+ * - EMBEDDING: Tests vector generation / 测试向量生成
+ * 
+ * Uses model-specific API config if available / 如果可用则使用模型特定的API配置
  */
 export async function testAIModel(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { id } = req.params;
-    // Get the model from database
+    // Get the model from database / 从数据库获取模型
     const model = await prisma.aIModel.findUnique({
       where: { id },
     });
     if (!model) {
       res.status(404).json({
         success: false,
-        error: 'AI model not found',
+        error: 'AI model not found / 未找到AI模型',
       });
       return;
     }
-    // Test the model connection using the modelId
-    const testResult = await aiService.testModelConnection(model.modelId);
-    // Log operation
+
+    // Get model type from config or detect from modelId
+    // 从配置获取模型类型或从modelId检测
+    const modelConfig = model.config as Record<string, unknown> | null;
+    const modelType = (modelConfig?.modelType as AIModelType) || aiService.detectModelType(model.modelId);
+
+    // Test the model connection using the modelId, type, and model-specific API config
+    // 使用modelId、类型和模型特定的API配置测试模型连接
+    const testResult = await aiService.testModelConnection(
+      model.modelId, 
+      modelType,
+      {
+        apiEndpoint: model.apiEndpoint,
+        apiKey: model.apiKey,
+      }
+    );
+
+    // Log operation / 记录操作
     await operationLogService.logOperation({
       userId: req.user!.id,
       operationType: OperationType.TEST,
       targetType: TargetType.AI_MODEL,
       targetId: id,
-      description: `Tested AI model connection: ${model.name} - ${testResult.success ? 'Success' : 'Failed'}`,
+      description: `Tested AI model connection / 测试AI模型连接: ${model.name} (${modelType}) - ${testResult.success ? 'Success/成功' : 'Failed/失败'}`,
       details: {
         modelId: model.modelId,
+        modelType,
         responseTime: testResult.responseTime,
         success: testResult.success,
+        hasCustomApiConfig: !!(model.apiEndpoint || model.apiKey),
       },
       req,
     });
-    logger.info('AI model tested', {
+
+    logger.info('AI model tested / AI模型已测试', {
       modelId: model.modelId,
+      modelType,
       success: testResult.success,
       responseTime: testResult.responseTime,
+      hasCustomApiConfig: !!(model.apiEndpoint || model.apiKey),
     });
+
     res.json({
       success: true,
       data: {
         modelId: model.modelId,
         modelName: model.name,
+        modelType,
         testResult: testResult.success,
         responseTime: testResult.responseTime,
         message: testResult.message,
         error: testResult.error,
+        hasCustomApiConfig: !!(model.apiEndpoint || model.apiKey),
       },
     });
   } catch (error) {
-    logger.error('Test AI model error', { error });
+    logger.error('Test AI model error / 测试AI模型错误', { error });
     res.status(500).json({
       success: false,
-      error: 'Failed to test AI model',
+      error: 'Failed to test AI model / 测试AI模型失败',
     });
   }
 }
 
 /**
  * Test AI Model Connection by Model ID (without database record)
+ * 通过模型ID直接测试AI模型连接（无需数据库记录）
  * POST /api/admin/ai-models/test-direct
+ * 
+ * Request body / 请求体:
+ * - modelId: The model identifier / 模型标识符
+ * - modelType: Optional model type (CHAT/TTS/EMBEDDING) / 可选模型类型
+ * - apiEndpoint: Optional custom API endpoint / 可选自定义API端点
+ * - apiKey: Optional custom API key / 可选自定义API密钥
  */
 export async function testAIModelDirect(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { modelId } = req.body;
+    const { modelId, modelType, apiEndpoint, apiKey } = req.body;
     if (!modelId) {
       res.status(400).json({
         success: false,
-        error: 'Model ID is required',
+        error: 'Model ID is required / 模型ID是必填项',
       });
       return;
     }
-    // Test the model connection directly
-    const testResult = await aiService.testModelConnection(modelId);
-    logger.info('AI model tested directly', {
+
+    // Validate model type if provided / 验证模型类型（如果提供）
+    const validModelTypes = Object.values(AIModelType);
+    if (modelType && !validModelTypes.includes(modelType)) {
+      res.status(400).json({
+        success: false,
+        error: `Invalid model type. Must be one of: ${validModelTypes.join(', ')} / 无效的模型类型，必须是以下之一: ${validModelTypes.join(', ')}`,
+      });
+      return;
+    }
+
+    // Detect model type if not provided / 如果未提供则检测模型类型
+    const detectedType = modelType || aiService.detectModelType(modelId);
+
+    // Test the model connection directly with optional custom API config
+    // 使用可选的自定义API配置直接测试模型连接
+    const testResult = await aiService.testModelConnection(
+      modelId, 
+      detectedType,
+      {
+        apiEndpoint: apiEndpoint || null,
+        apiKey: apiKey || null,
+      }
+    );
+
+    logger.info('AI model tested directly / AI模型直接测试', {
       modelId,
+      modelType: detectedType,
       success: testResult.success,
       responseTime: testResult.responseTime,
+      hasCustomApiConfig: !!(apiEndpoint || apiKey),
     });
+
     res.json({
       success: true,
       data: {
         modelId,
+        modelType: detectedType,
         testResult: testResult.success,
         responseTime: testResult.responseTime,
         message: testResult.message,
         error: testResult.error,
+        hasCustomApiConfig: !!(apiEndpoint || apiKey),
       },
     });
   } catch (error) {
-    logger.error('Test AI model direct error', { error });
+    logger.error('Test AI model direct error / 直接测试AI模型错误', { error });
     res.status(500).json({
       success: false,
-      error: 'Failed to test AI model',
+      error: 'Failed to test AI model / 测试AI模型失败',
     });
   }
 }
