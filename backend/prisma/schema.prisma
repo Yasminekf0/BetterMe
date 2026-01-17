@@ -158,7 +158,10 @@ model Session {
   messages     Message[]
   feedback     Feedback?
   email        FollowUpEmail?
-  conversation Conversation?
+  // This is the "Back-Reference". 
+  // It does NOT create a column in MySQL. 
+  // It only tells Prisma that a JOIN is possible.
+  conversations Conversation[]
 
   @@map("sessions")
 }
