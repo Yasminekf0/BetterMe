@@ -469,44 +469,6 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
           },
         }),
       ]);
-      // console.log("Saved media", mediaRecord);
-      // 4. Update Session and Conversation in DB
-      // await prisma.session.update({
-      //   where: { id: sessionId },
-      //   data: {
-      //     status: 'COMPLETED',
-      //     completedAt: new Date(),
-      //   },
-      // });
-
-      // Update the Conversation record with the recording link
-      // console.log("Saving conversation:",
-      //   {
-      //   where: { sessionId: sessionId },
-      //   data: {
-      //     completedAt: new Date(),
-      //     summary: "Audio recording saved successfully.", // Placeholder for AI summary
-      //   },
-      // }
-      // )
-      // await prisma.conversation.updateMany({
-      //   where: {
-      //     sessionId: sessionId, // Now allowed because it's updateMany
-      //   },
-      //   data: {
-      //     completedAt: new Date(),
-      //     summary: "Audio recording saved successfully."
-      //   }
-      // });
-      // await prisma.conversation.update({
-      //   where: { sessionId: sessionId },
-      //   data: {
-      //     completedAt: new Date(),
-      //     summary: "Audio recording saved successfully.", // Placeholder for AI summary
-      //     // If you added recordingUrl to Conversation:
-      //     // recordingUrl: audioUrl
-      //   },
-      // });
 
       logger.info("Session archived to OSS", { sessionId, audioUrl });
 
