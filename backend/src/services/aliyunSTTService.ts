@@ -42,7 +42,8 @@ class AliyunSTTService {
     this.regionId = process.env.ALIYUN_REGION_ID || "cn-hangzhou";
     this.ossBucket = process.env.ALIYUN_OSS_BUCKET || "";
 
-    this.sttEndpoint = "http://nlsapi.cn-shanghai.aliyuncs.com/asr/recognize";
+    // this.sttEndpoint = "http://nlsapi.cn-shanghai.aliyuncs.com/asr/recognize";
+    this.sttEndpoint = `http://nls-gateway-ap-southeast-1.aliyuncs.com/stream/v1/asr`
 
     // Aliyun Speech API endpoint
 
@@ -84,14 +85,22 @@ class AliyunSTTService {
         audioData, // Raw PCM audio buffer
         {
           params: {
-            access_key_id: this.accessKeyId,
-            access_key_secret: this.accessKeySecret,
+            appkey: "YEdK3LfMuznQO5jd",
             format: "pcm",
             sample_rate: 16000,
             language: language,
             model: modelName,
             enable_punctuation_prediction: punctuation ? "true" : "false",
           },
+          // params: {
+          //   access_key_id: this.accessKeyId,
+          //   access_key_secret: this.accessKeySecret,
+          //   format: "pcm",
+          //   sample_rate: 16000,
+          //   language: language,
+          //   model: modelName,
+          //   enable_punctuation_prediction: punctuation ? "true" : "false",
+          // },
           headers: {
             "Content-Type": "application/octet-stream", // Critical for PCM
             Accept: "application/json",
