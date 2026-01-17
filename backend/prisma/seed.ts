@@ -221,17 +221,31 @@ async function main() {
   }
 
   // Create default AI models in database
+  // AI模型类型: CHAT (对话), TTS (语音合成), STT (语音转文字), EMBEDDING (向量)
   const aiModels = [
-    { modelId: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', isDefault: true, description: 'Most capable GPT-4 model with vision' },
-    { modelId: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', description: 'Smaller, faster, cost-effective GPT-4 model' },
-    { modelId: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'OpenAI', description: 'Fast and efficient for simpler tasks' },
-    { modelId: 'claude-3-opus-20240229', name: 'Claude 3 Opus', provider: 'Anthropic', description: 'Most powerful Claude model' },
-    { modelId: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet', provider: 'Anthropic', description: 'Balanced performance and speed' },
-    { modelId: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', provider: 'Anthropic', description: 'Fast and compact' },
-    { modelId: 'qwen-max', name: 'Qwen Max', provider: 'Alibaba', description: 'Alibaba\'s most capable model' },
-    { modelId: 'qwen-plus', name: 'Qwen Plus', provider: 'Alibaba', description: 'Enhanced Qwen model' },
-    { modelId: 'qwen-turbo', name: 'Qwen Turbo', provider: 'Alibaba', description: 'Fast Qwen model' },
-    { modelId: 'deepseek-chat', name: 'DeepSeek Chat', provider: 'DeepSeek', description: 'General chat model' },
+    // Chat Models / 对话模型
+    { modelId: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', isDefault: true, description: 'Most capable GPT-4 model with vision', config: { modelType: 'CHAT' } },
+    { modelId: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', description: 'Smaller, faster, cost-effective GPT-4 model', config: { modelType: 'CHAT' } },
+    { modelId: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'OpenAI', description: 'Fast and efficient for simpler tasks', config: { modelType: 'CHAT' } },
+    { modelId: 'claude-3-opus-20240229', name: 'Claude 3 Opus', provider: 'Anthropic', description: 'Most powerful Claude model', config: { modelType: 'CHAT' } },
+    { modelId: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet', provider: 'Anthropic', description: 'Balanced performance and speed', config: { modelType: 'CHAT' } },
+    { modelId: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', provider: 'Anthropic', description: 'Fast and compact', config: { modelType: 'CHAT' } },
+    { modelId: 'qwen-max', name: 'Qwen Max', provider: 'Alibaba', description: 'Alibaba\'s most capable model', config: { modelType: 'CHAT' } },
+    { modelId: 'qwen-plus', name: 'Qwen Plus', provider: 'Alibaba', description: 'Enhanced Qwen model', config: { modelType: 'CHAT' } },
+    { modelId: 'qwen-turbo', name: 'Qwen Turbo', provider: 'Alibaba', description: 'Fast Qwen model', config: { modelType: 'CHAT' } },
+    { modelId: 'deepseek-chat', name: 'DeepSeek Chat', provider: 'DeepSeek', description: 'General chat model', config: { modelType: 'CHAT' } },
+    
+    // STT Models (Voice to Text / ASR) / 语音转文字模型
+    { modelId: 'qwen3-asr-flash-realtime', name: 'Qwen3 ASR Flash Realtime', provider: 'Alibaba', description: 'Real-time speech to text, low latency / 实时语音转文字，低延迟', config: { modelType: 'STT' } },
+    { modelId: 'qwen2.5-asr-turbo-realtime', name: 'Qwen2.5 ASR Turbo Realtime', provider: 'Alibaba', description: 'Fast speech to text / 快速语音转文字', config: { modelType: 'STT' } },
+    
+    // TTS Models (Text to Speech) / 语音合成模型
+    { modelId: 'cosyvoice-v1', name: 'CosyVoice V1', provider: 'Alibaba', description: 'High quality TTS / 高质量语音合成', config: { modelType: 'TTS' } },
+    { modelId: 'sambert-zhichu-v1', name: 'Sambert 知楚', provider: 'Alibaba', description: 'Chinese TTS / 中文语音合成', config: { modelType: 'TTS' } },
+    
+    // Embedding Models / 向量模型
+    { modelId: 'text-embedding-v3', name: 'Text Embedding V3', provider: 'Alibaba', description: 'Latest text embedding model / 最新版文本向量模型', config: { modelType: 'EMBEDDING' } },
+    { modelId: 'text-embedding-v2', name: 'Text Embedding V2', provider: 'Alibaba', description: 'Text embedding model V2 / 文本向量模型V2', config: { modelType: 'EMBEDDING' } },
   ];
 
   for (const model of aiModels) {

@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import WebSocket from 'ws';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
@@ -18,6 +19,7 @@ import { logger } from '../utils/logger';
 export enum AIModelType {
   CHAT = 'CHAT',           // Text chat model / 文本对话模型
   TTS = 'TTS',             // Text-to-Speech model / 语音合成模型
+  STT = 'STT',             // Speech-to-Text model / 语音转文字模型 (Voice to Text / ASR)
   EMBEDDING = 'EMBEDDING', // Embedding/Vector model / 向量模型
 }
 
@@ -88,6 +90,30 @@ interface TTSRequest {
   speed?: number;
 }
 
+// STT (Speech-to-Text) request interface / STT（语音转文字）请求接口
+interface STTRequest {
+  model: string;
+  audioData: Buffer;
+  format?: 'pcm' | 'opus' | 'wav';
+  sampleRate?: number;
+  language?: string;
+}
+
+// STT response interface / STT响应接口
+interface STTResponse {
+  text: string;
+  partial?: boolean;
+  duration?: number;
+}
+
+// STT session configuration / STT会话配置接口
+interface STTSessionConfig {
+  input_audio_format: string;
+  sample_rate: number;
+  language: string;
+  enable_input_audio_transcription: boolean;
+}
+
 // AI Model info interface / AI模型信息接口
 interface AIModelInfo {
   id: string;
@@ -104,6 +130,8 @@ const API_ENDPOINTS = {
   CHAT: '/chat/completions',           // Text chat / 文本对话
   EMBEDDING: '/embeddings',            // Vector embedding / 向量嵌入
   TTS: '/audio/speech',                // Text to speech / 文本转语音
+  // STT uses WebSocket endpoint / STT使用WebSocket端点
+  STT_WS_BASE: 'wss://dashscope.aliyuncs.com/api-ws/v1/realtime',  // Speech to text WebSocket / 语音转文字WebSocket
 };
 
 // Default available AI models for Aliyun Bailian
@@ -131,6 +159,10 @@ const DEFAULT_AI_MODELS: AIModelInfo[] = [
   { id: 'cosyvoice-v1', name: 'CosyVoice V1', provider: 'Alibaba', description: '高质量语音合成 / High quality TTS', type: AIModelType.TTS },
   { id: 'sambert-zhichu-v1', name: 'Sambert知楚', provider: 'Alibaba', description: '中文语音合成 / Chinese TTS', type: AIModelType.TTS },
   { id: 'sambert-zhimiao-emo-v1', name: 'Sambert知妙情感版', provider: 'Alibaba', description: '情感语音合成 / Emotional TTS', type: AIModelType.TTS },
+  
+  // Aliyun STT (ASR) Models / 阿里云语音识别模型 (Voice to Text)
+  { id: 'qwen3-asr-flash-realtime', name: 'Qwen3 ASR Flash Realtime', provider: 'Alibaba', description: '实时语音转文字，低延迟 / Real-time speech to text, low latency', type: AIModelType.STT },
+  { id: 'qwen2.5-asr-turbo-realtime', name: 'Qwen2.5 ASR Turbo Realtime', provider: 'Alibaba', description: '快速语音转文字 / Fast speech to text', type: AIModelType.STT },
 ];
 
 // Model-specific API configuration interface
@@ -244,6 +276,8 @@ class AIService {
         return API_ENDPOINTS.CHAT;
       case AIModelType.TTS:
         return API_ENDPOINTS.TTS;
+      case AIModelType.STT:
+        return API_ENDPOINTS.STT_WS_BASE;
       case AIModelType.EMBEDDING:
         return API_ENDPOINTS.EMBEDDING;
       default:
@@ -259,6 +293,14 @@ class AIService {
    */
   detectModelType(modelId: string): AIModelType {
     const lowerModelId = modelId.toLowerCase();
+    
+    // Check for STT/ASR models (Voice to Text) / 检查STT/ASR模型（语音转文字）
+    if (lowerModelId.includes('asr') || 
+        lowerModelId.includes('stt') ||
+        lowerModelId.includes('speech-to-text') ||
+        lowerModelId.includes('voice-to-text')) {
+      return AIModelType.STT;
+    }
     
     // Check for TTS models / 检查TTS模型
     if (lowerModelId.includes('cosyvoice') || 
@@ -458,6 +500,273 @@ class AIService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Speech to Text (STT) - Convert audio to text using WebSocket
+   * 语音转文字（STT）- 使用WebSocket将音频转换为文字
+   * 
+   * Uses Aliyun Bailian qwen3-asr-flash-realtime model
+   * 使用阿里云百炼 qwen3-asr-flash-realtime 模型
+   * 
+   * @param audioData - Audio buffer data / 音频缓冲数据
+   * @param options - STT options including model-specific API config / STT选项，包括模型特定API配置
+   * @returns Promise with transcribed text / 返回转录文字的Promise
+   */
+  async speechToText(
+    audioData: Buffer,
+    options?: {
+      model?: string;
+      format?: 'pcm' | 'opus' | 'wav';
+      sampleRate?: number;
+      language?: string;
+      // Model-specific API configuration / 模型特定API配置
+      apiEndpoint?: string | null;
+      apiKey?: string | null;
+    }
+  ): Promise<STTResponse> {
+    const sttModel = options?.model || config.ai.defaultSTTModel;
+    const apiKey = options?.apiKey || config.ai.apiKey;
+    const format = options?.format || 'pcm';
+    const sampleRate = options?.sampleRate || 16000;
+    const language = options?.language || 'zh';
+
+    // Construct WebSocket URL with model parameter
+    // 构建带模型参数的WebSocket URL
+    const wsBaseUrl = options?.apiEndpoint || API_ENDPOINTS.STT_WS_BASE;
+    const wsUrl = `${wsBaseUrl}?model=${sttModel}`;
+
+    return new Promise((resolve, reject) => {
+      let transcribedText = '';
+      let isCompleted = false;
+
+      try {
+        // Create WebSocket connection with authentication
+        // 创建带身份验证的WebSocket连接
+        const ws = new WebSocket(wsUrl, {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'OpenAI-Beta': 'realtime=v1'
+          }
+        });
+
+        // Connection timeout / 连接超时
+        const connectionTimeout = setTimeout(() => {
+          if (!isCompleted) {
+            ws.close();
+            reject(new Error('STT WebSocket connection timeout / STT WebSocket连接超时'));
+          }
+        }, config.ai.timeout);
+
+        ws.on('open', () => {
+          logger.debug('STT WebSocket connected / STT WebSocket已连接', { model: sttModel });
+
+          // Send session configuration / 发送会话配置
+          const sessionConfig: STTSessionConfig = {
+            input_audio_format: format,
+            sample_rate: sampleRate,
+            language: language,
+            enable_input_audio_transcription: true
+          };
+
+          ws.send(JSON.stringify({
+            event_id: `session_update_${Date.now()}`,
+            type: 'session.update',
+            session: sessionConfig
+          }));
+
+          // Send audio data in chunks / 分块发送音频数据
+          const chunkSize = 3200; // Approximately 0.2 seconds of audio at 16kHz / 约0.2秒的音频（16kHz采样率）
+          let offset = 0;
+
+          const sendChunk = () => {
+            if (offset < audioData.length && ws.readyState === WebSocket.OPEN) {
+              const chunk = audioData.slice(offset, offset + chunkSize);
+              ws.send(chunk);
+              offset += chunkSize;
+              // Small delay between chunks / 块之间的小延迟
+              setTimeout(sendChunk, 20);
+            } else if (offset >= audioData.length && ws.readyState === WebSocket.OPEN) {
+              // Send silence to trigger VAD end / 发送静音以触发VAD结束
+              const silence = Buffer.alloc(chunkSize, 0);
+              for (let i = 0; i < 5; i++) {
+                ws.send(silence);
+              }
+            }
+          };
+
+          sendChunk();
+        });
+
+        ws.on('message', (data: WebSocket.Data) => {
+          try {
+            const msg = JSON.parse(data.toString());
+            logger.debug('STT WebSocket message / STT WebSocket消息', { type: msg.type });
+
+            // Handle different message types / 处理不同消息类型
+            if (msg.type === 'transcript.partial') {
+              // Partial transcription result / 部分转录结果
+              logger.debug('Partial transcript / 部分转录', { text: msg.transcript });
+            } else if (msg.type === 'transcript.final' || msg.type === 'response.done') {
+              // Final transcription result / 最终转录结果
+              transcribedText = msg.transcript || msg.text || '';
+              isCompleted = true;
+              clearTimeout(connectionTimeout);
+              ws.close();
+              resolve({
+                text: transcribedText,
+                partial: false,
+                duration: msg.duration
+              });
+            } else if (msg.type === 'error') {
+              // Error from server / 服务器错误
+              isCompleted = true;
+              clearTimeout(connectionTimeout);
+              ws.close();
+              reject(new Error(`STT error / STT错误: ${msg.error?.message || 'Unknown error'}`));
+            } else if (msg.type === 'session.created' || msg.type === 'session.updated') {
+              // Session events / 会话事件
+              logger.debug('STT session event / STT会话事件', { type: msg.type });
+            }
+          } catch (parseError) {
+            // Non-JSON message (possibly binary) / 非JSON消息（可能是二进制）
+            logger.debug('STT received non-JSON message / STT收到非JSON消息');
+          }
+        });
+
+        ws.on('error', (error: Error) => {
+          logger.error('STT WebSocket error / STT WebSocket错误', { error: error.message, model: sttModel });
+          if (!isCompleted) {
+            isCompleted = true;
+            clearTimeout(connectionTimeout);
+            reject(new Error(`STT WebSocket error / STT WebSocket错误: ${error.message}`));
+          }
+        });
+
+        ws.on('close', (code: number, reason: Buffer) => {
+          logger.debug('STT WebSocket closed / STT WebSocket已关闭', { code, reason: reason.toString() });
+          clearTimeout(connectionTimeout);
+          if (!isCompleted) {
+            isCompleted = true;
+            // If closed without final result, return partial text or empty
+            // 如果没有最终结果就关闭，返回部分文本或空
+            resolve({
+              text: transcribedText,
+              partial: true
+            });
+          }
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred / 发生未知错误';
+        logger.error('STT initialization failed / STT初始化失败', { error: errorMessage, model: sttModel });
+        reject(new Error(`STT error / STT错误: ${errorMessage}`));
+      }
+    });
+  }
+
+  /**
+   * Get STT WebSocket URL for direct client connection
+   * 获取STT WebSocket URL供客户端直接连接
+   * 
+   * @param model - STT model ID / STT模型ID
+   * @param apiConfig - Optional API configuration / 可选API配置
+   * @returns WebSocket URL and headers for client connection / 客户端连接的WebSocket URL和请求头
+   */
+  getSTTWebSocketConfig(
+    model?: string,
+    apiConfig?: ModelAPIConfig
+  ): {
+    url: string;
+    headers: { Authorization: string; 'OpenAI-Beta': string };
+    sessionConfig: STTSessionConfig;
+  } {
+    const sttModel = model || config.ai.defaultSTTModel;
+    const apiKey = apiConfig?.apiKey || config.ai.apiKey;
+    // For STT models, always use WebSocket endpoint, ignore HTTP apiEndpoint
+    // 对于STT模型，始终使用WebSocket端点，忽略HTTP的apiEndpoint
+    const wsBaseUrl = API_ENDPOINTS.STT_WS_BASE;
+
+    return {
+      url: `${wsBaseUrl}?model=${sttModel}`,
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'OpenAI-Beta': 'realtime=v1'
+      },
+      sessionConfig: {
+        input_audio_format: 'pcm',
+        sample_rate: 16000,
+        language: 'zh',
+        enable_input_audio_transcription: true
+      }
+    };
+  }
+
+  /**
+   * Test STT WebSocket connection
+   * 测试STT WebSocket连接
+   * 
+   * @param url - WebSocket URL / WebSocket地址
+   * @param headers - Connection headers / 连接请求头
+   * @returns Connection test result / 连接测试结果
+   */
+  private testSTTWebSocketConnection(
+    url: string,
+    headers: { Authorization: string; 'OpenAI-Beta': string }
+  ): Promise<{ success: boolean; error?: string }> {
+    return new Promise((resolve) => {
+      const timeout = 10000; // 10 seconds timeout / 10秒超时
+      let isResolved = false;
+
+      try {
+        const ws = new WebSocket(url, { headers });
+
+        // Connection timeout / 连接超时
+        const timeoutId = setTimeout(() => {
+          if (!isResolved) {
+            isResolved = true;
+            ws.close();
+            resolve({ success: false, error: 'Connection timeout / 连接超时' });
+          }
+        }, timeout);
+
+        ws.on('open', () => {
+          if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timeoutId);
+            logger.debug('STT WebSocket connection test successful / STT WebSocket连接测试成功');
+            ws.close();
+            resolve({ success: true });
+          }
+        });
+
+        ws.on('error', (error: Error) => {
+          if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timeoutId);
+            logger.error('STT WebSocket connection test failed / STT WebSocket连接测试失败', { error: error.message });
+            resolve({ success: false, error: error.message });
+          }
+        });
+
+        ws.on('close', (code: number, reason: Buffer) => {
+          if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timeoutId);
+            // If closed before open event, it's a failure / 如果在open事件前关闭，则失败
+            resolve({ 
+              success: false, 
+              error: `Connection closed: code=${code}, reason=${reason.toString() || 'No reason'}` 
+            });
+          }
+        });
+      } catch (error) {
+        if (!isResolved) {
+          isResolved = true;
+          const errorMsg = error instanceof Error ? error.message : 'Failed to create WebSocket';
+          resolve({ success: false, error: errorMsg });
+        }
+      }
+    });
   }
 
   /**
@@ -751,6 +1060,44 @@ Respond ONLY with valid JSON, no additional text.`;
               ? 'TTS model connection successful / TTS模型连接成功' 
               : 'Model responded but no audio returned / 模型响应但未返回音频',
           };
+        }
+
+        case AIModelType.STT: {
+          // Test STT model by attempting WebSocket connection / 通过尝试WebSocket连接测试STT模型
+          const wsConfig = this.getSTTWebSocketConfig(modelId, apiConfig);
+          
+          // Verify the configuration is valid / 验证配置有效
+          if (!wsConfig.url || !wsConfig.headers.Authorization) {
+            return {
+              success: false,
+              responseTime: Date.now() - startTime,
+              message: 'STT model configuration invalid / STT模型配置无效',
+              error: 'Missing URL or API key / 缺少URL或API密钥',
+            };
+          }
+
+          // Perform actual WebSocket connection test / 执行实际的WebSocket连接测试
+          try {
+            const connectionResult = await this.testSTTWebSocketConnection(wsConfig.url, wsConfig.headers);
+            const endTime = Date.now();
+            return {
+              success: connectionResult.success,
+              responseTime: endTime - startTime,
+              message: connectionResult.success 
+                ? 'STT model connection successful / STT模型连接成功' 
+                : 'STT model connection failed / STT模型连接失败',
+              error: connectionResult.error,
+            };
+          } catch (wsError) {
+            const endTime = Date.now();
+            const errorMsg = wsError instanceof Error ? wsError.message : 'Unknown WebSocket error';
+            return {
+              success: false,
+              responseTime: endTime - startTime,
+              message: 'STT model connection failed / STT模型连接失败',
+              error: errorMsg,
+            };
+          }
         }
 
         default: {

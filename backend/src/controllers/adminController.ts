@@ -872,10 +872,10 @@ export async function testAIModel(req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    // Get model type from config or detect from modelId
-    // 从配置获取模型类型或从modelId检测
-    const modelConfig = model.config as Record<string, unknown> | null;
-    const modelType = (modelConfig?.modelType as AIModelType) || aiService.detectModelType(model.modelId);
+    // Always detect model type from modelId to ensure correct type detection
+    // 始终从modelId检测模型类型以确保正确的类型检测
+    // STT/ASR models need special handling with WebSocket / STT/ASR模型需要使用WebSocket特殊处理
+    const modelType = aiService.detectModelType(model.modelId);
 
     // Test the model connection using the modelId, type, and model-specific API config
     // 使用modelId、类型和模型特定的API配置测试模型连接

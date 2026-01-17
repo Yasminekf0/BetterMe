@@ -2,6 +2,7 @@ import app from './app';
 import { config } from './config';
 import { logger } from './utils/logger';
 import { prisma } from './lib/prisma';
+import { initializeStorageConfigs } from './services/mediaService';
 
 /**
  * Start the server
@@ -11,6 +12,9 @@ async function startServer(): Promise<void> {
     // Test database connection
     await prisma.$connect();
     logger.info('Database connected successfully');
+
+    // Initialize storage configurations / 初始化存储配置
+    await initializeStorageConfigs();
 
     // Start server - bind to 0.0.0.0 for external access
     app.listen(config.server.port, '0.0.0.0', () => {

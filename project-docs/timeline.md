@@ -2,6 +2,99 @@
 
 ## 版本历史 / Version History
 
+### v1.2.3 (2026-01-17) - Aliyun OSS Storage Integration / 阿里云OSS存储集成
+
+**新增功能 / New Features:**
+
+1. **阿里云OSS存储服务集成 / Aliyun OSS Storage Service Integration**
+   - 安装 `ali-oss` SDK 依赖
+   - 支持通过数据库配置动态创建OSS客户端
+   - 支持V4签名增强安全性 (authorizationV4)
+
+2. **OSS文件操作功能 / OSS File Operations**
+   - `createOSSClient()`: 创建阿里云OSS客户端实例
+   - `uploadToOSS()`: 上传本地文件到OSS
+   - `uploadBufferToOSS()`: 上传Buffer/流到OSS
+   - `deleteFromOSS()`: 从OSS删除单个文件
+   - `batchDeleteFromOSS()`: 批量删除OSS文件
+   - `getOSSSignedUrl()`: 获取私有对象签名URL
+   - `checkOSSObjectExists()`: 检查对象是否存在
+   - `testOSSConnection()`: 测试OSS连接
+   - `listOSSObjects()`: 列出指定前缀的对象
+   - `copyOSSObject()`: 复制OSS对象
+   - `generateOSSKey()`: 生成组织化目录结构的OSS键
+
+3. **媒体删除功能增强 / Media Delete Enhancement**
+   - `deleteMedia()` 函数现支持阿里云OSS存储类型
+   - 根据存储类型自动选择删除方式（本地/OSS）
+
+**新增依赖 / New Dependencies:**
+- `ali-oss` ^6.x: 阿里云OSS Node.js SDK
+- `@types/ali-oss` ^6.x: TypeScript类型定义
+
+**修改文件 / Modified Files:**
+- `backend/src/services/mediaService.ts` - 添加阿里云OSS集成功能
+- `backend/package.json` - 添加ali-oss依赖
+
+**配置说明 / Configuration Notes:**
+- OSS配置通过数据库 `StorageConfig` 表管理
+- 需要在管理后台配置以下参数：
+  - `accessKeyId`: 阿里云AccessKey ID
+  - `accessKeySecret`: 阿里云AccessKey Secret
+  - `region`: OSS区域 (如 oss-cn-hangzhou)
+  - `bucket`: OSS存储桶名称
+  - `endpoint`: (可选) 自定义端点
+  - `baseUrl`: (可选) CDN或自定义访问域名
+
+**API文档参考 / API Documentation Reference:**
+- Aliyun OSS API: https://help.aliyun.com/zh/oss/developer-reference/list-of-operations-by-function
+
+---
+
+### v1.2.2 (2026-01-16) - Voice to Text (STT/ASR) Support / 语音转文字支持
+
+**新增功能 / New Features:**
+
+1. **STT (Speech-to-Text) 语音转文字模型支持 / STT Model Support**
+   - 新增 `AIModelType.STT` 模型类型枚举
+   - 添加 `qwen3-asr-flash-realtime` 实时语音识别模型
+   - 添加 `qwen2.5-asr-turbo-realtime` 快速语音识别模型
+   - 支持 Aliyun Bailian 百炼 ASR WebSocket API
+
+2. **AI服务层STT功能 / AI Service STT Features**
+   - `speechToText()`: 语音转文字方法，支持 WebSocket 实时识别
+   - `getSTTWebSocketConfig()`: 获取 STT WebSocket 配置供客户端直接连接
+   - `detectModelType()`: 自动检测 ASR/STT 模型类型
+   - `testModelConnection()`: 支持 STT 模型配置验证
+
+3. **支持的音频格式 / Supported Audio Formats**
+   - PCM (16kHz 采样率)
+   - Opus
+   - WAV
+
+4. **STT 配置选项 / STT Configuration Options**
+   - 可配置采样率 (sample_rate)
+   - 可配置语言 (language)
+   - 可配置音频格式 (format)
+   - 支持模型特定的 API 配置
+
+**配置变更 / Configuration Changes:**
+- 新增环境变量 `AI_DEFAULT_STT_MODEL`: 默认 STT 模型 (默认值: qwen3-asr-flash-realtime)
+
+**新增依赖 / New Dependencies:**
+- `ws` ^8.18.0: WebSocket 客户端库
+- `@types/ws` ^8.5.10: TypeScript 类型定义
+
+**修改文件 / Modified Files:**
+- `backend/src/services/aiService.ts` - 添加 STT 模型支持和 speechToText 方法
+- `backend/src/config/index.ts` - 添加默认 STT 模型配置
+- `backend/package.json` - 添加 ws 依赖
+
+**API文档参考 / API Documentation Reference:**
+- Aliyun Bailian Real-time ASR: https://help.aliyun.com/zh/model-studio/qwen-real-time-speech-recognition
+
+---
+
 ### v1.2.1 (2026-01-16) - AI Model API Configuration / AI模型API配置独立化
 
 **新增功能 / New Features:**
@@ -480,6 +573,7 @@
 
 | 日期 Date | 版本 Version | 描述 Description |
 |-----------|-------------|------------------|
+| 2026-01-17 | v1.2.3 | 阿里云OSS存储集成 - 文件上传、删除、签名URL、连接测试等 |
 | 2026-01-14 | v1.1.0 | Admin系统扩展 - 登录管理、媒体、存储、插件、文章、通知、支付、订单、会员、积分、角色权限、多语言 |
 | 2026-01-14 | v1.0.3 | Admin模块完成 - 用户管理、设置、日志、AI模型、角色模板、统计 |
 | 2026-01-14 | v1.0.2 | 前端功能增强 - API集成、Toast/Skeleton组件、Admin表单 |
@@ -488,4 +582,4 @@
 
 ---
 
-*最后更新 / Last Updated: 2026-01-14*
+*最后更新 / Last Updated: 2026-01-17*

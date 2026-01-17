@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.13.0",
+    "ali-oss": "^6.23.0",
     "axios": "^1.6.8",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -31,9 +32,11 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^9.0.1",
-    "winston": "^3.13.0"
+    "winston": "^3.13.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/ali-oss": "^6.23.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
@@ -43,6 +46,7 @@
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.6",
     "@types/uuid": "^9.0.8",
+    "@types/ws": "^8.5.10",
     "prisma": "^5.13.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",

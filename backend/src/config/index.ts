@@ -40,6 +40,8 @@ export const config = {
     defaultModel: process.env.AI_DEFAULT_MODEL || 'qwen-plus',
     // Default TTS model / 默认TTS语音合成模型
     defaultTTSModel: process.env.AI_DEFAULT_TTS_MODEL || 'cosyvoice-v1',
+    // Default STT model (Voice to Text / ASR) / 默认STT语音转文字模型
+    defaultSTTModel: process.env.AI_DEFAULT_STT_MODEL || 'qwen3-asr-flash-realtime',
     // Default embedding model / 默认向量模型
     defaultEmbeddingModel: process.env.AI_DEFAULT_EMBEDDING_MODEL || 'text-embedding-v3',
     timeout: parseInt(process.env.AI_TIMEOUT || '60000', 10),
