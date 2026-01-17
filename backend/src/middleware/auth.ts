@@ -60,7 +60,6 @@ export async function authenticate(
     // Get token from header
     const cookies = req.headers.cookie;
     if (!token) {
-      console.log("Authentication failed: No token found in headers or cookies", req.headers);
       res.status(401).json({
         success: false,
         error: 'Authentication required',
@@ -177,9 +176,7 @@ export async function optionalAuth(
  */
 export function authorize(...allowedRoles: UserRoleType[]) {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
-    console.log("Authorizing user with roles:", allowedRoles, "and user:", req.user);
     if (!req.user) {
-      console.log("Authorization failed: no user attached to request with roles:", allowedRoles, "user:", req.user);
       res.status(401).json({
         success: false,
         error: 'Authentication required',

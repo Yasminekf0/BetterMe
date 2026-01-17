@@ -4,10 +4,10 @@ import { useRealtimeRoleplay } from '@/hooks/useRealtimeRoleplay';
 import { useState } from 'react';
 
 export default function RealtimeRoleplayTest() {
-  const [scenarioId, setScenarioId] = useState('aba1a74a-f308-11f0-a033-00163e153d4e');
+  const [scenarioId, setScenarioId] = useState('5333f079-3b46-4745-97d8-8b287e19a7ae');
   const [config, setConfig] = useState({
     sessionId: `session-${Date.now()}`,
-    scenarioId: 'aba1a74a-f308-11f0-a033-00163e153d4e',
+    scenarioId: '5333f079-3b46-4745-97d8-8b287e19a7ae',
   });
   
   const {

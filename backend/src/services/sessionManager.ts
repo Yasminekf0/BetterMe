@@ -130,7 +130,7 @@ class SessionManager {
    * Buffers audio and triggers STT when buffer is full or on timeout
    */
   async handleAudioChunk(sessionId: string, audioData: Buffer): Promise<void> {
-    console.log("(sessionManager - handleAudioChunk called with:", sessionId, audioData.length);
+    // console.log("(sessionManager - handleAudioChunk called with:", sessionId);
     const session = this.getSession(sessionId);
     if (!session) {
       logger.warn('Audio chunk received for non-existent session', { sessionId });
@@ -138,14 +138,14 @@ class SessionManager {
     }
 
     try {
-      console.log("Appending audio data of size:", audioData.length);
+      // console.log("Appending audio data of size:", audioData.length);
       session.audioBuffer.push(audioData);
       session.fullAudioBuffer.push(audioData);
       session.totalAudioSize += audioData.length;
       session.lastActivityTime = Date.now();
       // Trigger STT logic when we have ~2 seconds of audio
       if (session.totalAudioSize >= this.MAX_AUDIO_BUFFER_SIZE) {
-        console.log("Processing audio buffer for session:", sessionId);
+        // console.log("Processing audio buffer for session:", sessionId);
         await this.processAudioBuffer(sessionId);
       }
     } catch (error) {
@@ -162,7 +162,7 @@ class SessionManager {
    * Sends to Aliyun STT and processes response
    */
   private async processAudioBuffer(sessionId: string): Promise<void> {
-    console.log("processAudioBuffer called for session:", sessionId);
+    // console.log("processAudioBuffer called for session:", sessionId);
     const session = this.getSession(sessionId);
     if (!session || session.isProcessing || session.audioBuffer.length === 0) {
       return;
@@ -190,6 +190,17 @@ class SessionManager {
         session.isProcessing = false;
         return;
       }
+
+      // 2. CREATE NEW CONVERSATION RECORD FOR THIS TURN
+      const newConversation = await prisma.conversation.create({
+        data: {
+          sessionId: sessionId, // Foreign key to the current session
+          userId: session.userId,
+          scenarioId: session.scenarioId,
+          title: `User Response`,
+          summary: `User said: ${transcribedText.substring(0, 50)}...`,
+        }
+      });
 
       // Log user message
       await prisma.message.create({
@@ -290,6 +301,25 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
         }
       );
 
+      const aiConv = await prisma.conversation.create({
+        data: {
+          sessionId: sessionId,
+          userId: session.userId,
+          scenarioId: session.scenarioId,
+          title: "AI Response",
+          summary: aiResponse.substring(0, 100),
+        }
+      });
+
+      await prisma.message.create({
+        data: {
+          sessionId,
+          conversationId: aiConv.id,
+          role: 'AI',
+          content: aiResponse,
+        },
+      });
+
       // Save AI response to database
       await prisma.message.create({
         data: {
@@ -371,7 +401,7 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
    * End a session gracefully
    */
   async endSession(sessionId: string, reason: string = 'normal'): Promise<void> {
-    console.log("sessionManager - endSession called with:", sessionId, reason);
+    // console.log("sessionManager - endSession called with:", sessionId, reason);
     const session = this.getSession(sessionId);
     if (!session) {
       return;
@@ -381,7 +411,7 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
       const completeAudio = Buffer.concat(session.fullAudioBuffer);
       // 2. TODO: Upload completeAudio to Aliyun OSS/S3 here
       // 2. Upload to Aliyun OSS
-      console.log("Uploading to aliyun complete audio of size:", completeAudio.length);
+      // console.log("Uploading to aliyun complete audio of size:", completeAudio.length);
       const filename = `recordings/${session.userId}/${sessionId}-${uuidv4()}.wav`;
       const uploadResult = await this.ossClient.put(filename, completeAudio);
       const audioUrl = uploadResult.url;
@@ -403,7 +433,7 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
           uploadedById: session.userId,
         }
       });
-      console.log("Saved media", mediaRecord);
+      // console.log("Saved media", mediaRecord);
       // 4. Update Session and Conversation in DB
       await prisma.session.update({
         where: { id: sessionId },
@@ -414,15 +444,15 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
       });
 
       // Update the Conversation record with the recording link
-      console.log("Saving conversation:",
-        {
-        where: { sessionId: sessionId },
-        data: {
-          completedAt: new Date(),
-          summary: "Audio recording saved successfully.", // Placeholder for AI summary
-        },
-      }
-      )
+      // console.log("Saving conversation:",
+      //   {
+      //   where: { sessionId: sessionId },
+      //   data: {
+      //     completedAt: new Date(),
+      //     summary: "Audio recording saved successfully.", // Placeholder for AI summary
+      //   },
+      // }
+      // )
       await prisma.conversation.update({
         where: { sessionId: sessionId },
         data: {

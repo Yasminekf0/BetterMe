@@ -98,7 +98,6 @@ class AliyunSTTService {
 
       logger.info('Uploading audio to Aliyun OSS', {
         fileName,
-        size: audioData.length,
       });
 
       // Example: OSS URL would be like:

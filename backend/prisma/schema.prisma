@@ -198,7 +198,7 @@ enum MessageRole {
 // Conversation model - High-level abstraction for recording and managing chat histories
 model Conversation {
   id         String  @id @default(uuid())
-  sessionId  String  @unique
+  sessionId  String
   session    Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   userId     String
   user       User    @relation("UserConversations", fields: [userId], references: [id], onDelete: Cascade)
