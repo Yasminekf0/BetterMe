@@ -1,10 +1,9 @@
-import { logger } from '../utils/logger';
-import { aiService } from './aiService';
-import { aliyunSTTService } from './aliyunSTTService';
-import { prisma } from '../lib/prisma';
-import { Socket } from 'socket.io';
-import OSS from 'ali-oss';
-import { v4 as uuidv4 } from 'uuid';
+import OSS from "ali-oss";
+import { Socket } from "socket.io";
+import { v4 as uuidv4 } from "uuid";
+import { prisma } from "../lib/prisma";
+import { logger } from "../utils/logger";
+import { aiService } from "./aiService";
 
 /**
  * Audio Configuration
@@ -12,7 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 interface AudioConfig {
   sampleRate: number;
   channels: number;
-  format: 'wav' | 'pcm';
+  format: "wav" | "pcm";
 }
 
 /**
@@ -44,7 +43,7 @@ class SessionManager {
   private audioConfig: AudioConfig = {
     sampleRate: 16000,
     channels: 1,
-    format: 'pcm',
+    format: "pcm",
   };
 
   // Maximum audio buffer size before processing (in bytes)
@@ -75,7 +74,7 @@ class SessionManager {
     sessionId: string,
     userId: string,
     scenarioId: string,
-    socket: Socket
+    socket: Socket,
   ): Promise<RealtimeSession> {
     try {
       // Get scenario details
@@ -84,7 +83,7 @@ class SessionManager {
       });
 
       if (!scenario) {
-        throw new Error('Scenario not found');
+        throw new Error("Scenario not found");
       }
 
       const session: RealtimeSession = {
@@ -105,7 +104,7 @@ class SessionManager {
       };
 
       this.sessions.set(sessionId, session);
-      logger.info('Session created', {
+      logger.info("Session created", {
         sessionId,
         userId,
         scenarioId,
@@ -113,7 +112,7 @@ class SessionManager {
 
       return session;
     } catch (error) {
-      logger.error('Failed to create session', { error });
+      logger.error("Failed to create session", { error });
       throw error;
     }
   }
@@ -133,7 +132,9 @@ class SessionManager {
     // console.log("(sessionManager - handleAudioChunk called with:", sessionId);
     const session = this.getSession(sessionId);
     if (!session) {
-      logger.warn('Audio chunk received for non-existent session', { sessionId });
+      logger.warn("Audio chunk received for non-existent session", {
+        sessionId,
+      });
       return;
     }
 
@@ -149,10 +150,10 @@ class SessionManager {
         await this.processAudioBuffer(sessionId);
       }
     } catch (error) {
-      logger.error('Failed to handle audio chunk', { sessionId, error });
-      session.socket.emit('error', {
-        message: 'Failed to process audio',
-        type: 'AUDIO_PROCESSING_ERROR',
+      logger.error("Failed to handle audio chunk", { sessionId, error });
+      session.socket.emit("error", {
+        message: "Failed to process audio",
+        type: "AUDIO_PROCESSING_ERROR",
       });
     }
   }
@@ -177,16 +178,19 @@ class SessionManager {
       session.totalAudioSize = 0;
 
       // Emit progress to client
-      session.socket.emit('audio-received', {
+      session.socket.emit("audio-received", {
         audioSize: combinedAudio.length,
         timestamp: Date.now(),
       });
 
       // Send to Aliyun STT (placeholder - implement with actual Aliyun SDK)
-      const transcribedText = await this.transcribeAudio(combinedAudio, sessionId);
+      const transcribedText = await this.transcribeAudio(
+        combinedAudio,
+        sessionId,
+      );
 
       if (!transcribedText || transcribedText.trim().length === 0) {
-        logger.info('Empty transcription', { sessionId });
+        logger.info("Empty transcription", { sessionId });
         session.isProcessing = false;
         return;
       }
@@ -199,26 +203,26 @@ class SessionManager {
           scenarioId: session.scenarioId,
           title: `User Response`,
           summary: `User said: ${transcribedText.substring(0, 50)}...`,
-        }
+        },
       });
 
       // Log user message
       await prisma.message.create({
         data: {
           sessionId,
-          role: 'USER',
+          role: "USER",
           content: transcribedText,
         },
       });
 
       // Add to conversation history
       session.conversationHistory.push({
-        role: 'user',
+        role: "user",
         content: transcribedText,
       });
 
       // Emit transcribed text to client
-      session.socket.emit('transcription', {
+      session.socket.emit("transcription", {
         text: transcribedText,
         timestamp: Date.now(),
       });
@@ -226,10 +230,10 @@ class SessionManager {
       // Generate AI response
       await this.generateAIResponse(sessionId);
     } catch (error) {
-      logger.error('Failed to process audio buffer', { sessionId, error });
-      session.socket.emit('error', {
-        message: 'Failed to process audio',
-        type: 'STT_ERROR',
+      logger.error("Failed to process audio buffer", { sessionId, error });
+      session.socket.emit("error", {
+        message: "Failed to process audio",
+        type: "STT_ERROR",
       });
     } finally {
       session.isProcessing = false;
@@ -239,9 +243,12 @@ class SessionManager {
   /**
    * Transcribe audio using Aliyun STT
    */
-  private async transcribeAudio(audioData: Buffer, sessionId: string): Promise<string> {
+  private async transcribeAudio(
+    audioData: Buffer,
+    sessionId: string,
+  ): Promise<string> {
     try {
-      logger.info('Sending audio to Aliyun STT', {
+      logger.info("Sending audio to Aliyun STT", {
         sessionId,
         audioSize: audioData.length,
       });
@@ -249,14 +256,14 @@ class SessionManager {
       const result = {
         text: "Simulated transcription text",
         confidence: 0.95,
-      }
+      };
       // const result = await aliyunSTTService.transcribe(audioData, {
       //   language: 'zh-CN',
       //   punctuation: true,
       //   modelName: 'general',
       // });
 
-      logger.info('Aliyun STT response received', {
+      logger.info("Aliyun STT response received", {
         sessionId,
         text: result.text,
         confidence: result.confidence,
@@ -264,7 +271,7 @@ class SessionManager {
 
       return result.text;
     } catch (error) {
-      logger.error('Aliyun STT error', { sessionId, error });
+      logger.error("Aliyun STT error", { sessionId, error });
       throw error;
     }
   }
@@ -286,20 +293,20 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
 
       // Build messages array for AI
       const messages = [
-        { role: 'system', content: systemPrompt },
+        { role: "system", content: systemPrompt },
         ...session.conversationHistory,
       ];
 
-      logger.info('Generating AI response', { sessionId, turnCount: session.turnCount });
+      logger.info("Generating AI response", {
+        sessionId,
+        turnCount: session.turnCount,
+      });
 
       // Get AI response
-      const aiResponse = await aiService.chatCompletion(
-        messages as any,
-        {
-          temperature: 0.8,
-          maxTokens: 200,
-        }
-      );
+      const aiResponse = await aiService.chatCompletion(messages as any, {
+        temperature: 0.8,
+        maxTokens: 200,
+      });
 
       const aiConv = await prisma.conversation.create({
         data: {
@@ -308,14 +315,14 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
           scenarioId: session.scenarioId,
           title: "AI Response",
           summary: aiResponse.substring(0, 100),
-        }
+        },
       });
 
       await prisma.message.create({
         data: {
           sessionId,
           conversationId: aiConv.id,
-          role: 'AI',
+          role: "AI",
           content: aiResponse,
         },
       });
@@ -324,21 +331,21 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
       await prisma.message.create({
         data: {
           sessionId,
-          role: 'AI',
+          role: "AI",
           content: aiResponse,
         },
       });
 
       // Add to conversation history
       session.conversationHistory.push({
-        role: 'assistant',
+        role: "assistant",
         content: aiResponse,
       });
 
       session.turnCount++;
 
       // Emit AI response to client
-      session.socket.emit('ai-response', {
+      session.socket.emit("ai-response", {
         text: aiResponse,
         turnCount: session.turnCount,
         maxTurns: session.maxTurns,
@@ -350,16 +357,16 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
 
       // Check if session should end
       if (session.turnCount >= session.maxTurns) {
-        session.socket.emit('session-ending', {
-          reason: 'max_turns_reached',
+        session.socket.emit("session-ending", {
+          reason: "max_turns_reached",
           totalTurns: session.turnCount,
         });
       }
     } catch (error) {
-      logger.error('Failed to generate AI response', { sessionId, error });
-      session.socket.emit('error', {
-        message: 'Failed to generate response',
-        type: 'AI_RESPONSE_ERROR',
+      logger.error("Failed to generate AI response", { sessionId, error });
+      session.socket.emit("error", {
+        message: "Failed to generate response",
+        type: "AI_RESPONSE_ERROR",
       });
     }
   }
@@ -368,7 +375,10 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
    * Generate avatar audio/video response
    * TODO: Implement with video generation service
    */
-  private async generateAvatarResponse(sessionId: string, text: string): Promise<void> {
+  private async generateAvatarResponse(
+    sessionId: string,
+    text: string,
+  ): Promise<void> {
     const session = this.getSession(sessionId);
     if (!session) {
       return;
@@ -382,17 +392,20 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
       // 3. D-ID or similar for video generation
       // 4. Stream pre-recorded avatar videos
 
-      logger.info('Generating avatar response', { sessionId, textLength: text.length });
+      logger.info("Generating avatar response", {
+        sessionId,
+        textLength: text.length,
+      });
 
       // Placeholder: Emit mock video URL
-      session.socket.emit('avatar-response', {
-        videoUrl: '/api/videos/placeholder.mp4',
-        audioUrl: '/api/audio/placeholder.mp3',
+      session.socket.emit("avatar-response", {
+        videoUrl: "/api/videos/placeholder.mp4",
+        audioUrl: "/api/audio/placeholder.mp3",
         duration: 3000, // milliseconds
         timestamp: Date.now(),
       });
     } catch (error) {
-      logger.error('Failed to generate avatar response', { sessionId, error });
+      logger.error("Failed to generate avatar response", { sessionId, error });
       // Don't throw - avatar is optional, conversation can continue
     }
   }
@@ -400,7 +413,10 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
   /**
    * End a session gracefully
    */
-  async endSession(sessionId: string, reason: string = 'normal'): Promise<void> {
+  async endSession(
+    sessionId: string,
+    reason: string = "normal",
+  ): Promise<void> {
     // console.log("sessionManager - endSession called with:", sessionId, reason);
     const session = this.getSession(sessionId);
     if (!session) {
@@ -419,29 +435,49 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
       const duration = Date.now() - session.startTime;
 
       // 3. Save to Media table
-      
+
       const mediaRecord = await prisma.media.create({
         data: {
           name: `Recording-${sessionId}`,
           originalName: `${sessionId}.wav`,
           path: filename,
           url: audioUrl,
-          mimeType: 'audio/wav',
+          mimeType: "audio/wav",
           size: completeAudio.length,
-          storageType: 'ALIYUN_OSS',
+          storageType: "ALIYUN_OSS",
           bucket: process.env.ALIYUN_OSS_BUCKET,
           uploadedById: session.userId,
-        }
-      });
-      // console.log("Saved media", mediaRecord);
-      // 4. Update Session and Conversation in DB
-      await prisma.session.update({
-        where: { id: sessionId },
-        data: {
-          status: 'COMPLETED',
-          completedAt: new Date(),
         },
       });
+
+      await prisma.$transaction([
+        // Mark the master session as completed
+        prisma.session.update({
+          where: { id: sessionId },
+          data: {
+            status: "COMPLETED",
+            completedAt: new Date(),
+          },
+        }),
+        // Mark every "turn" (Conversation record) as completed
+        prisma.conversation.updateMany({
+          where: { sessionId: sessionId },
+          data: {
+            completedAt: new Date(),
+            // You can also store the final recording URL in every turn if needed
+            recordingUrl: audioUrl,
+          },
+        }),
+      ]);
+      // console.log("Saved media", mediaRecord);
+      // 4. Update Session and Conversation in DB
+      // await prisma.session.update({
+      //   where: { id: sessionId },
+      //   data: {
+      //     status: 'COMPLETED',
+      //     completedAt: new Date(),
+      //   },
+      // });
 
       // Update the Conversation record with the recording link
       // console.log("Saving conversation:",
@@ -453,19 +489,28 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
       //   },
       // }
       // )
-      await prisma.conversation.update({
-        where: { sessionId: sessionId },
-        data: {
-          completedAt: new Date(),
-          summary: "Audio recording saved successfully.", // Placeholder for AI summary
-          // If you added recordingUrl to Conversation:
-          // recordingUrl: audioUrl 
-        },
-      });
+      // await prisma.conversation.updateMany({
+      //   where: {
+      //     sessionId: sessionId, // Now allowed because it's updateMany
+      //   },
+      //   data: {
+      //     completedAt: new Date(),
+      //     summary: "Audio recording saved successfully."
+      //   }
+      // });
+      // await prisma.conversation.update({
+      //   where: { sessionId: sessionId },
+      //   data: {
+      //     completedAt: new Date(),
+      //     summary: "Audio recording saved successfully.", // Placeholder for AI summary
+      //     // If you added recordingUrl to Conversation:
+      //     // recordingUrl: audioUrl
+      //   },
+      // });
 
-      logger.info('Session archived to OSS', { sessionId, audioUrl });
+      logger.info("Session archived to OSS", { sessionId, audioUrl });
 
-      logger.info('Session ended', {
+      logger.info("Session ended", {
         sessionId,
         userId: session.userId,
         scenarioId: session.scenarioId,
@@ -474,19 +519,17 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
         reason,
       });
 
-
       // Notify client
-      session.socket.emit('session-ended', {
+      session.socket.emit("session-ended", {
         reason,
         totalTurns: session.turnCount,
         duration,
         audioUrl,
       });
 
-      session.socket.emit('session-ended', { reason, audioUrl });
       this.sessions.delete(sessionId);
     } catch (error) {
-      logger.error('Failed to end session', { sessionId, error });
+      logger.error("Failed to end session", { sessionId, error });
     }
   }
 
@@ -503,17 +546,17 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
       await prisma.session.update({
         where: { id: sessionId },
         data: {
-          status: 'ABANDONED',
+          status: "ABANDONED",
           completedAt: new Date(),
         },
       });
 
-      session.socket.emit('session-force-ended', { reason });
+      session.socket.emit("session-force-ended", { reason });
       this.sessions.delete(sessionId);
 
-      logger.warn('Session force ended', { sessionId, reason });
+      logger.warn("Session force ended", { sessionId, reason });
     } catch (error) {
-      logger.error('Failed to force end session', { sessionId, error });
+      logger.error("Failed to force end session", { sessionId, error });
     }
   }
 
@@ -532,15 +575,15 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
         where: { id: sessionId },
       });
 
-      if (dbSession && dbSession.status === 'ACTIVE') {
-        await this.forceEndSession(sessionId, 'client_disconnect');
+      if (dbSession && dbSession.status === "ACTIVE") {
+        await this.forceEndSession(sessionId, "client_disconnect");
       } else {
         this.sessions.delete(sessionId);
       }
 
-      logger.info('Client disconnected', { sessionId });
+      logger.info("Client disconnected", { sessionId });
     } catch (error) {
-      logger.error('Failed to handle disconnect', { sessionId, error });
+      logger.error("Failed to handle disconnect", { sessionId, error });
     }
   }
 
@@ -558,11 +601,13 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
     });
 
     staleSessionIds.forEach((sessionId) => {
-      this.forceEndSession(sessionId, 'timeout');
+      this.forceEndSession(sessionId, "timeout");
     });
 
     if (staleSessionIds.length > 0) {
-      logger.info('Cleaned up stale sessions', { count: staleSessionIds.length });
+      logger.info("Cleaned up stale sessions", {
+        count: staleSessionIds.length,
+      });
     }
   }
 
@@ -575,7 +620,10 @@ Keep responses natural and concise (1-3 sentences). Show appropriate objections 
   } {
     let totalMemory = 0;
     this.sessions.forEach((session) => {
-      totalMemory += session.audioBuffer.reduce((sum, buf) => sum + buf.length, 0);
+      totalMemory += session.audioBuffer.reduce(
+        (sum, buf) => sum + buf.length,
+        0,
+      );
     });
 
     return {
