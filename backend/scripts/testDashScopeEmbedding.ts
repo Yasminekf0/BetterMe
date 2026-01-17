@@ -12,7 +12,7 @@ async function run() {
     {
       model: "text-embedding-v2",
       input: {
-        texts: ["hello world"]
+        texts: ["i love tech"]
       }
     },
     {
@@ -22,9 +22,14 @@ async function run() {
       }
     }
   );
+  const embedding = res.data.output.embeddings[0].embedding;
+
+  
 
   console.log("STATUS:", res.status);
   console.log("BODY:", JSON.stringify(res.data, null, 2));
+  console.log("Embedding length:", embedding.length);
+  console.log("First 5 values:", embedding.slice(0, 5));
 }
 
 run().catch(err => {
