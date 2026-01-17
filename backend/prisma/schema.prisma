@@ -154,7 +154,7 @@ model Session {
   startedAt   DateTime      @default(now())
   completedAt DateTime?
 
-  // Relations
+  // RelationsAPI
   messages     Message[]
   feedback     Feedback?
   email        FollowUpEmail?
@@ -280,19 +280,46 @@ model FollowUpEmail {
   @@map("follow_up_emails")
 }
 
+// AI Model Category Enum - AI模型分类枚举
+// Different categories have different API endpoints / 不同分类有不同的API端点
+enum AIModelCategory {
+  CHAT          // Text chat/conversation models / 文本对话模型
+  TTS           // Text-to-Speech models / 语音合成模型
+  STT           // Speech-to-Text models (ASR) / 语音转文字模型
+  EMBEDDING     // Vector/Embedding models / 向量嵌入模型
+  MULTIMODAL    // Multimodal models (vision, etc.) / 多模态模型
+}
+
 // AI Model Configuration
+// AI模型配置 - 支持多个AI提供商（阿里云百炼等）
+// API Doc: https://help.aliyun.com/zh/model-studio/
 model AIModel {
-  id          String   @id @default(uuid())
-  modelId     String   @unique
+  id          String           @id @default(uuid())
+  modelId     String           @unique
   name        String
   provider    String
+  // Model category - determines API endpoint type / 模型分类 - 决定API端点类型
+  category    AIModelCategory  @default(CHAT)
   description String?
+  // API Endpoint - API接口地址 (different for each category / 每个分类不同)
+  // e.g., Chat: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+  // e.g., TTS: https://dashscope.aliyuncs.com/compatible
+  // e.g., Embedding: https://dashscope.aliyuncs.com/compatible-mode/v1
+  // e.g., STT: wss://dashscope.aliyuncs.com/api-ws/v1/realtime
+  apiEndpoint String?
+  // API Key - API密钥 (encrypted storage recommended / 建议加密存储)
+  apiKey      String?          @db.Text
+  isDefault   Boolean          @default(false)
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   isDefault   Boolean  @default(false)
   isActive    Boolean  @default(true)
   config      Json? // Additional configuration
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@index([category])
   @@map("ai_models")
 }
 
@@ -811,3 +838,69 @@ model Translation {
   @@index([key])
   @@map("translations")
 }
+
+// ==================== RAG Document Management / RAG文档管理 ====================
+
+// RAG Document Status - RAG文档状态
+enum RAGDocumentStatus {
+  PENDING       // 待处理
+  PROCESSING    // 处理中
+  COMPLETED     // 已完成
+  FAILED        // 失败
+}
+
+// RAG Document - RAG文档
+// Stores uploaded documents for RAG / 存储用于RAG的上传文档
+model RAGDocument {
+  id              String            @id @default(uuid())
+  name            String            // Display name / 显示名称
+  originalName    String            // Original file name / 原始文件名
+  fileType        String            // File extension / 文件扩展名
+  filePath        String            // Storage path / 存储路径
+  fileSize        Int               // File size in bytes / 文件大小（字节）
+  mimeType        String?           // MIME type / MIME类型
+  // Processing info / 处理信息
+  status          RAGDocumentStatus @default(PENDING)
+  chunkCount      Int               @default(0)      // Number of chunks / 块数量
+  chunkSize       Int               @default(500)    // Chunk size setting / 块大小设置
+  chunkOverlap    Int               @default(50)     // Chunk overlap setting / 块重叠设置
+  vectorCount     Int               @default(0)      // Successfully vectorized count / 成功向量化数量
+  errorMessage    String?           @db.Text         // Error message if failed / 失败时的错误信息
+  processedAt     DateTime?         // Processing completion time / 处理完成时间
+  // Metadata / 元数据
+  description     String?           @db.Text         // Document description / 文档描述
+  tags            Json?             // Tags for categorization / 分类标签
+  collectionName  String            @default("bettermeCollection") // Vector collection name / 向量集合名称
+  // Audit fields / 审计字段
+  uploadedById    String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Relations / 关联
+  chunks          RAGChunk[]
+
+  @@index([status])
+  @@index([fileType])
+  @@index([uploadedById])
+  @@map("rag_documents")
+}
+
+// RAG Chunk - 文档向量块（本地存储）
+// Used when DashVector is not configured / 当DashVector未配置时使用
+model RAGChunk {
+  id              String            @id @default(uuid())
+  documentId      String            // Parent document ID / 父文档ID
+  document        RAGDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunkIndex      Int               // Chunk sequence number / 块序号
+  text            String            @db.Text          // Chunk text content / 块文本内容
+  embedding       Json?             // Vector embedding (stored as JSON array) / 向量嵌入（存储为JSON数组）
+  startOffset     Int               // Start position in original text / 原文本起始位置
+  endOffset       Int               // End position in original text / 原文本结束位置
+  metadata        Json?             // Additional metadata / 附加元数据
+  createdAt       DateTime          @default(now())
+
+  @@unique([documentId, chunkIndex])
+  @@index([documentId])
+  @@map("rag_chunks")
+}
+

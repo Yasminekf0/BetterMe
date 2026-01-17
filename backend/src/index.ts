@@ -5,6 +5,7 @@ import { prisma } from './lib/prisma';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { registerSocketHandlers } from './socket/handlers';
+import { initializeStorageConfigs } from './services/mediaService';
 
 /**
  * Start the server with Socket.io support
@@ -37,6 +38,9 @@ async function startServer(): Promise<void> {
 
     // Register socket event handlers
     registerSocketHandlers(io);
+
+    // Initialize storage configurations / 初始化存储配置
+    await initializeStorageConfigs();
 
     // Start server - bind to 0.0.0.0 for external access
     httpServer.listen(config.server.port, '0.0.0.0', () => {

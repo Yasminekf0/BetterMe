@@ -70,6 +70,27 @@ export async function getStorageConfigs(req: AuthRequest, res: Response): Promis
   }
 }
 
+/**
+ * Get storage statistics
+ * 获取存储统计信息
+ */
+export async function getStorageStats(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const stats = await mediaService.getStorageStats();
+    res.json({ 
+      success: true, 
+      data: {
+        usedStorage: stats.total.size || 0,
+        fileCount: stats.total.count || 0,
+        totalStorage: 0, // Can be calculated from configs if needed / 可从配置中计算
+      }
+    });
+  } catch (error) {
+    logger.error('Get storage stats error', { error });
+    res.status(500).json({ success: false, error: 'Failed to get storage stats' });
+  }
+}
+
 export async function updateStorageConfig(req: AuthRequest, res: Response): Promise<void> {
   try {
     const config = await mediaService.upsertStorageConfig(req.body);
@@ -84,6 +105,32 @@ export async function updateStorageConfig(req: AuthRequest, res: Response): Prom
   } catch (error) {
     logger.error('Update storage config error', { error });
     res.status(500).json({ success: false, error: 'Failed to update storage config' });
+  }
+}
+
+/**
+ * Test Aliyun OSS connection
+ * 测试阿里云OSS连接
+ */
+export async function testOSSConnection(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const result = await mediaService.testOSSConnection();
+    
+    if (result.success) {
+      res.json({ 
+        success: true, 
+        message: result.message,
+        bucketInfo: result.bucketInfo,
+      });
+    } else {
+      res.json({ 
+        success: false, 
+        error: result.message,
+      });
+    }
+  } catch (error) {
+    logger.error('Test OSS connection error', { error });
+    res.status(500).json({ success: false, error: 'Failed to test OSS connection' });
   }
 }
 

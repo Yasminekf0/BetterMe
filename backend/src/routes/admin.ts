@@ -2,26 +2,15 @@ import { Router, Response } from 'express';
 import { authenticate, adminOnly, trainerOrAdmin, AuthRequest } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
 import { logger } from '../utils/logger';
-import { aiService } from '../services/aiService';
 import bcrypt from 'bcryptjs';
 import {
-  getSettings,
-  getSettingsByCategory,
-  updateSettings,
-  resetSettings,
-  getOperationLogs,
+  // Personas routes / 角色模板路由
   getPersonaTemplates,
   createPersonaTemplate,
   updatePersonaTemplate,
   deletePersonaTemplate,
-  getAIModels,
-  createAIModel,
-  updateAIModel,
-  deleteAIModel,
-  testAIModel,
-  testAIModelDirect,
+  // User details route / 用户详情路由
   getUserDetails,
-  exportStatistics,
 } from '../controllers/adminController';
 import { logOperation, OperationType, TargetType } from '../services/operationLogService';
 
@@ -586,72 +575,7 @@ router.delete('/users/:id', adminOnly, async (req: AuthRequest, res: Response) =
   }
 });
 
-/**
- * Get Available AI Models (basic - includes service defaults)
- * GET /api/admin/ai-models/available
- */
-router.get('/ai-models/available', trainerOrAdmin, async (req: AuthRequest, res: Response) => {
-  try {
-    // Get models from AI service
-    const models = aiService.getAvailableModels();
-
-    // Also get any custom models from database
-    const dbModels = await prisma.aIModel.findMany({
-      where: { isActive: true },
-      orderBy: { name: 'asc' },
-    });
-
-    res.json({
-      success: true,
-      data: {
-        defaultModels: models,
-        customModels: dbModels,
-      },
-    });
-  } catch (error) {
-    logger.error('Get AI models error', { error });
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get AI models',
-    });
-  }
-});
-
-// ==================== System Settings Routes ====================
-
-/**
- * Get All System Settings
- * GET /api/admin/settings
- */
-router.get('/settings', adminOnly, getSettings);
-
-/**
- * Get Settings by Category
- * GET /api/admin/settings/:category
- */
-router.get('/settings/:category', adminOnly, getSettingsByCategory);
-
-/**
- * Update System Settings
- * PUT /api/admin/settings
- */
-router.put('/settings', adminOnly, updateSettings);
-
-/**
- * Reset Settings to Defaults
- * POST /api/admin/settings/reset
- */
-router.post('/settings/reset', adminOnly, resetSettings);
-
-// ==================== Operation Logs Routes ====================
-
-/**
- * Get Operation Logs
- * GET /api/admin/logs
- */
-router.get('/logs', adminOnly, getOperationLogs);
-
-// ==================== Buyer Persona Templates Routes ====================
+// ==================== Buyer Persona Templates Routes / 买家角色模板路由 ====================
 
 /**
  * Get All Buyer Persona Templates
@@ -677,46 +601,7 @@ router.put('/personas/:id', trainerOrAdmin, updatePersonaTemplate);
  */
 router.delete('/personas/:id', adminOnly, deletePersonaTemplate);
 
-// ==================== AI Model Management Routes ====================
-
-/**
- * Get All AI Models
- * GET /api/admin/ai-models
- */
-router.get('/ai-models', adminOnly, getAIModels);
-
-/**
- * Test AI Model Connection Directly (without database record)
- * POST /api/admin/ai-models/test-direct
- * Note: This route must be defined before /:id routes to avoid conflicts
- */
-router.post('/ai-models/test-direct', adminOnly, testAIModelDirect);
-
-/**
- * Create AI Model
- * POST /api/admin/ai-models
- */
-router.post('/ai-models', adminOnly, createAIModel);
-
-/**
- * Test AI Model Connection
- * POST /api/admin/ai-models/:id/test
- */
-router.post('/ai-models/:id/test', adminOnly, testAIModel);
-
-/**
- * Update AI Model
- * PUT /api/admin/ai-models/:id
- */
-router.put('/ai-models/:id', adminOnly, updateAIModel);
-
-/**
- * Delete AI Model
- * DELETE /api/admin/ai-models/:id
- */
-router.delete('/ai-models/:id', adminOnly, deleteAIModel);
-
-// ==================== User Details Routes ====================
+// ==================== User Details Routes / 用户详情路由 ====================
 
 /**
  * Get User Details with Statistics
@@ -724,13 +609,9 @@ router.delete('/ai-models/:id', adminOnly, deleteAIModel);
  */
 router.get('/users/:id', adminOnly, getUserDetails);
 
-// ==================== Export Routes ====================
-
-/**
- * Export Statistics Report
- * GET /api/admin/export/statistics
- */
-router.get('/export/statistics', adminOnly, exportStatistics);
+// ==================== Products Routes / 产品路由 ====================
+// Note: Products management uses the scenario system for training scenarios
+// 注意：产品管理使用场景系统来管理培训场景
 
 export default router;
 

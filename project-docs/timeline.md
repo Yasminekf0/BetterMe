@@ -2,6 +2,258 @@
 
 ## 版本历史 / Version History
 
+### v1.2.5 (2026-01-17) - AI Service Documentation / AI服务集成文档
+
+**变更说明 / Change Description:**
+
+1. **新增AI服务集成指南文档 / Added AI Service Integration Guide**
+   - 创建 `project-docs/ai-service-guide.md` 中英文文档
+   - 包含完整的环境配置说明
+   - 后端 aiService 所有方法的使用示例
+   - 前端通过 API 调用 AI 的方式
+   - RAG 向量检索实现示例
+   - 常见问题解答
+
+**文档内容 / Document Contents:**
+- 概述 / Overview
+- 环境配置 / Environment Configuration
+- 后端调用方式 / Backend Usage
+- 前端调用方式 / Frontend Usage
+- API参考 / API Reference
+- RAG向量检索 / RAG Vector Search
+- 常见问题 / FAQ
+
+**新增文件 / Added Files:**
+- `project-docs/ai-service-guide.md`
+
+---
+
+### v1.2.4 (2026-01-17) - Admin Backend Simplification & Environment Configuration / 管理后台简化与环境配置优化
+
+**变更说明 / Change Description:**
+
+1. **管理员后台功能简化 / Admin Backend Simplification**
+   - 只保留核心功能模块：Overview, Scenarios, Personas, Products, Users, Statistics
+   - 移除以下路由：
+     - AI Models 管理 (ai-models/*)
+     - System Settings (settings/*)
+     - Operation Logs (logs/*)
+     - Export (export/*)
+   - 保留的路由仍然完整可用
+
+2. **环境变量配置优化 / Environment Configuration Enhancement**
+   - 创建 `.env.example` 示例文件
+   - AI模型配置集中到环境变量：
+     - `DASHSCOPE_API_KEY`: 阿里云百炼API密钥
+     - `AI_API_BASE_URL`: AI API基础URL
+     - `AI_DEFAULT_MODEL`: 默认对话模型
+     - `AI_DEFAULT_TTS_MODEL`: 默认TTS模型
+     - `AI_DEFAULT_STT_MODEL`: 默认STT模型
+     - `AI_DEFAULT_EMBEDDING_MODEL`: 默认向量模型
+     - `AI_TIMEOUT`: 请求超时时间
+     - `AI_MAX_TOKENS`: 最大Token数
+     - `AI_TEMPERATURE`: 温度参数
+
+3. **阿里云OSS存储环境配置 / Aliyun OSS Environment Configuration**
+   - 新增OSS相关环境变量：
+     - `OSS_ACCESS_KEY_ID`: 访问密钥ID
+     - `OSS_ACCESS_KEY_SECRET`: 访问密钥
+     - `OSS_REGION`: OSS区域
+     - `OSS_BUCKET`: 存储桶名称
+     - `OSS_ENDPOINT`: OSS端点
+     - `OSS_BASE_URL`: CDN/自定义域名
+   - 在 config/index.ts 中添加OSS配置读取
+
+**修改文件 / Modified Files:**
+- `backend/src/routes/admin.ts` - 移除不需要的路由
+- `backend/src/config/index.ts` - 添加OSS配置
+- `backend/.env.example` - 新建环境变量示例文件
+
+**API文档参考 / API Documentation:**
+- 阿里云百炼API: https://help.aliyun.com/zh/model-studio/get-api-key
+- 阿里云OSS: https://help.aliyun.com/document_detail/31886.html
+
+---
+
+### v1.2.3 (2026-01-17) - Aliyun OSS Storage Integration / 阿里云OSS存储集成
+
+**新增功能 / New Features:**
+
+1. **阿里云OSS存储服务集成 / Aliyun OSS Storage Service Integration**
+   - 安装 `ali-oss` SDK 依赖
+   - 支持通过数据库配置动态创建OSS客户端
+   - 支持V4签名增强安全性 (authorizationV4)
+
+2. **OSS文件操作功能 / OSS File Operations**
+   - `createOSSClient()`: 创建阿里云OSS客户端实例
+   - `uploadToOSS()`: 上传本地文件到OSS
+   - `uploadBufferToOSS()`: 上传Buffer/流到OSS
+   - `deleteFromOSS()`: 从OSS删除单个文件
+   - `batchDeleteFromOSS()`: 批量删除OSS文件
+   - `getOSSSignedUrl()`: 获取私有对象签名URL
+   - `checkOSSObjectExists()`: 检查对象是否存在
+   - `testOSSConnection()`: 测试OSS连接
+   - `listOSSObjects()`: 列出指定前缀的对象
+   - `copyOSSObject()`: 复制OSS对象
+   - `generateOSSKey()`: 生成组织化目录结构的OSS键
+
+3. **媒体删除功能增强 / Media Delete Enhancement**
+   - `deleteMedia()` 函数现支持阿里云OSS存储类型
+   - 根据存储类型自动选择删除方式（本地/OSS）
+
+**新增依赖 / New Dependencies:**
+- `ali-oss` ^6.x: 阿里云OSS Node.js SDK
+- `@types/ali-oss` ^6.x: TypeScript类型定义
+
+**修改文件 / Modified Files:**
+- `backend/src/services/mediaService.ts` - 添加阿里云OSS集成功能
+- `backend/package.json` - 添加ali-oss依赖
+
+**配置说明 / Configuration Notes:**
+- OSS配置通过数据库 `StorageConfig` 表管理
+- 需要在管理后台配置以下参数：
+  - `accessKeyId`: 阿里云AccessKey ID
+  - `accessKeySecret`: 阿里云AccessKey Secret
+  - `region`: OSS区域 (如 oss-cn-hangzhou)
+  - `bucket`: OSS存储桶名称
+  - `endpoint`: (可选) 自定义端点
+  - `baseUrl`: (可选) CDN或自定义访问域名
+
+**API文档参考 / API Documentation Reference:**
+- Aliyun OSS API: https://help.aliyun.com/zh/oss/developer-reference/list-of-operations-by-function
+
+---
+
+### v1.2.2 (2026-01-16) - Voice to Text (STT/ASR) Support / 语音转文字支持
+
+**新增功能 / New Features:**
+
+1. **STT (Speech-to-Text) 语音转文字模型支持 / STT Model Support**
+   - 新增 `AIModelType.STT` 模型类型枚举
+   - 添加 `qwen3-asr-flash-realtime` 实时语音识别模型
+   - 添加 `qwen2.5-asr-turbo-realtime` 快速语音识别模型
+   - 支持 Aliyun Bailian 百炼 ASR WebSocket API
+
+2. **AI服务层STT功能 / AI Service STT Features**
+   - `speechToText()`: 语音转文字方法，支持 WebSocket 实时识别
+   - `getSTTWebSocketConfig()`: 获取 STT WebSocket 配置供客户端直接连接
+   - `detectModelType()`: 自动检测 ASR/STT 模型类型
+   - `testModelConnection()`: 支持 STT 模型配置验证
+
+3. **支持的音频格式 / Supported Audio Formats**
+   - PCM (16kHz 采样率)
+   - Opus
+   - WAV
+
+4. **STT 配置选项 / STT Configuration Options**
+   - 可配置采样率 (sample_rate)
+   - 可配置语言 (language)
+   - 可配置音频格式 (format)
+   - 支持模型特定的 API 配置
+
+**配置变更 / Configuration Changes:**
+- 新增环境变量 `AI_DEFAULT_STT_MODEL`: 默认 STT 模型 (默认值: qwen3-asr-flash-realtime)
+
+**新增依赖 / New Dependencies:**
+- `ws` ^8.18.0: WebSocket 客户端库
+- `@types/ws` ^8.5.10: TypeScript 类型定义
+
+**修改文件 / Modified Files:**
+- `backend/src/services/aiService.ts` - 添加 STT 模型支持和 speechToText 方法
+- `backend/src/config/index.ts` - 添加默认 STT 模型配置
+- `backend/package.json` - 添加 ws 依赖
+
+**API文档参考 / API Documentation Reference:**
+- Aliyun Bailian Real-time ASR: https://help.aliyun.com/zh/model-studio/qwen-real-time-speech-recognition
+
+---
+
+### v1.2.1 (2026-01-16) - AI Model API Configuration / AI模型API配置独立化
+
+**新增功能 / New Features:**
+
+1. **AI模型独立API配置支持 / Independent API Configuration for AI Models**
+   - 每个AI模型可配置独立的 `apiEndpoint` (API接口地址)
+   - 每个AI模型可配置独立的 `apiKey` (API密钥)
+   - 支持不同AI提供商（OpenAI, Anthropic, DeepSeek, Alibaba等）同时使用
+   - 未配置独立API时自动回退到全局配置
+
+2. **AI服务层增强 / AI Service Layer Enhancement**
+   - `createClient()`: 支持创建带有特定API配置的客户端
+   - `getClientForModel()`: 根据模型配置获取对应的API客户端
+   - `chatCompletion()`: 支持传入模型特定的API配置
+   - `generateEmbedding()`: 支持传入模型特定的API配置
+   - `textToSpeech()`: 支持传入模型特定的API配置
+   - `testModelConnection()`: 支持使用模型特定的API配置测试连接
+
+3. **管理后台AI模型管理优化 / Admin AI Model Management Enhancement**
+   - 创建模型时支持填写 API Endpoint 和 API Key
+   - 更新模型时支持修改 API Endpoint 和 API Key
+   - 列表显示时API Key自动遮蔽（只显示前8位+****）
+   - 测试模型连接时使用模型自带的API配置
+   - 直接测试接口支持传入自定义API配置
+
+4. **安全性增强 / Security Enhancement**
+   - API Key在返回给前端时自动遮蔽
+   - 数据库存储使用 `@db.Text` 支持长密钥
+
+**数据库变更 / Database Changes:**
+- `AIModel` 表新增字段：
+  - `apiEndpoint`: API接口地址 (可选)
+  - `apiKey`: API密钥 (可选，Text类型)
+
+**修改文件 / Modified Files:**
+- `backend/prisma/schema.prisma` - 添加 apiEndpoint, apiKey 字段
+- `backend/src/services/aiService.ts` - 重构支持模型特定API配置
+- `backend/src/controllers/adminController.ts` - 更新模型CRUD和测试逻辑
+
+**迁移说明 / Migration Notes:**
+- 需要运行 `npx prisma migrate dev` 来应用数据库迁移
+- 现有模型将自动使用全局配置（无需手动迁移数据）
+
+---
+
+### v1.2.0 (2026-01-16) - Aliyun Bailian AI Integration / 阿里云百炼大模型集成
+
+**新增功能 / New Features:**
+
+1. **阿里云百炼大模型支持 / Aliyun Bailian Model Support**
+   - 集成阿里云百炼（DashScope）API
+   - 支持OpenAI兼容模式调用
+   - Base URL: `https://dashscope.aliyuncs.com/compatible-mode/v1`
+   
+2. **多类型AI模型支持 / Multi-type AI Model Support**
+   - CHAT: 文本对话模型 (qwen-max, qwen-plus, qwen-turbo等)
+   - TTS: 文本转语音模型 (cosyvoice-v1, sambert等)
+   - EMBEDDING: 向量模型 (text-embedding-v3等)
+   
+3. **AI服务层优化 / AI Service Layer Enhancement**
+   - `generateEmbedding()`: 文本向量化接口
+   - `textToSpeech()`: TTS语音合成接口
+   - `detectModelType()`: 自动检测模型类型
+   - `getEndpointForModelType()`: 根据模型类型获取API端点
+   - `testModelConnection()`: 支持按模型类型测试连接
+   
+4. **管理后台AI模型管理优化 / Admin AI Model Management Enhancement**
+   - 创建模型时自动检测模型类型
+   - 支持按模型类型筛选可用模型
+   - 模型测试支持不同类型（对话/TTS/向量）
+   - 返回按类型分组的模型列表
+
+**配置变更 / Configuration Changes:**
+- 新增环境变量 `DASHSCOPE_API_KEY`: 阿里云百炼API密钥
+- 新增环境变量 `AI_DEFAULT_TTS_MODEL`: 默认TTS模型
+- 新增环境变量 `AI_DEFAULT_EMBEDDING_MODEL`: 默认向量模型
+- 默认Base URL变更为阿里云百炼
+
+**修改文件 / Modified Files:**
+- `backend/src/config/index.ts` - 添加百炼配置
+- `backend/src/services/aiService.ts` - 重构AI服务支持多类型模型
+- `backend/src/controllers/adminController.ts` - 更新模型创建/测试逻辑
+- `backend/src/routes/admin.ts` - 更新路由支持模型类型筛选
+
+---
+
 ### v1.1.0 (2026-01-14) - Admin System Enhancement
 
 **新增功能 / New Features:**
@@ -394,6 +646,8 @@
 
 | 日期 Date | 版本 Version | 描述 Description |
 |-----------|-------------|------------------|
+| 2026-01-17 | v1.2.4 | 管理后台简化 & 环境配置优化 - 只保留核心功能，AI和OSS配置移至env文件 |
+| 2026-01-17 | v1.2.3 | 阿里云OSS存储集成 - 文件上传、删除、签名URL、连接测试等 |
 | 2026-01-14 | v1.1.0 | Admin系统扩展 - 登录管理、媒体、存储、插件、文章、通知、支付、订单、会员、积分、角色权限、多语言 |
 | 2026-01-14 | v1.0.3 | Admin模块完成 - 用户管理、设置、日志、AI模型、角色模板、统计 |
 | 2026-01-14 | v1.0.2 | 前端功能增强 - API集成、Toast/Skeleton组件、Admin表单 |
@@ -402,4 +656,4 @@
 
 ---
 
-*最后更新 / Last Updated: 2026-01-14*
+*最后更新 / Last Updated: 2026-01-17 (v1.2.4)*
