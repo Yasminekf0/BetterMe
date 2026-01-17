@@ -12,25 +12,25 @@ datasource db {
 
 // User model - 用户基础模型
 model User {
-  id          String   @id @default(uuid())
-  email       String?  @unique
-  password    String?
-  name        String
-  avatar      String?
-  phone       String?  @unique
-  role        UserRole @default(USER)
-  department  String?
-  isActive    Boolean  @default(true)
+  id                 String          @id @default(uuid())
+  email              String?         @unique
+  password           String?
+  name               String
+  avatar             String?
+  phone              String?         @unique
+  role               UserRole        @default(USER)
+  department         String?
+  isActive           Boolean         @default(true)
   // 多语言偏好
-  language    String   @default("en")
+  language           String          @default("en")
   // 会员相关
-  membershipId    String?
-  membership      MembershipPlan? @relation(fields: [membershipId], references: [id])
+  membershipId       String?
+  membership         MembershipPlan? @relation(fields: [membershipId], references: [id])
   membershipExpireAt DateTime?
   // 积分
-  points          Int     @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  points             Int             @default(0)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   // Relations
   sessions         Session[]
@@ -45,6 +45,7 @@ model User {
   articles         Article[]              @relation("ArticleAuthor")
   media            Media[]                @relation("MediaUploader")
   roleAssignments  UserRoleAssignment[]
+  conversations    Conversation[]         @relation("UserConversations")
 
   @@map("users")
 }
@@ -58,17 +59,17 @@ enum UserRole {
 
 // OAuth Account - 第三方登录账户
 model OAuthAccount {
-  id            String   @id @default(uuid())
+  id            String        @id @default(uuid())
   userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   provider      OAuthProvider
-  providerId    String   // 第三方平台用户ID
-  accessToken   String?  @db.Text
-  refreshToken  String?  @db.Text
+  providerId    String // 第三方平台用户ID
+  accessToken   String?       @db.Text
+  refreshToken  String?       @db.Text
   tokenExpireAt DateTime?
-  profile       Json?    // 存储第三方返回的用户信息
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  profile       Json? // 存储第三方返回的用户信息
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   @@unique([provider, providerId])
   @@map("oauth_accounts")
@@ -84,18 +85,18 @@ enum OAuthProvider {
 
 // Login Config - 登录方式配置
 model LoginConfig {
-  id          String    @id @default(uuid())
+  id          String        @id @default(uuid())
   provider    OAuthProvider
   name        String
-  isEnabled   Boolean   @default(false)
+  isEnabled   Boolean       @default(false)
   appId       String?
   appSecret   String?
   redirectUri String?
   scope       String?
-  config      Json?     // 额外配置
-  sortOrder   Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  config      Json? // 额外配置
+  sortOrder   Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   @@unique([provider])
   @@map("login_configs")
@@ -103,35 +104,35 @@ model LoginConfig {
 
 // Scenario model
 model Scenario {
-  id               String     @id @default(uuid())
-  title            String
-  description      String     @db.Text
-  category         String
-  difficulty       Difficulty @default(MEDIUM)
-  estimatedDuration Int       @default(15)
-  isActive         Boolean    @default(true)
-  practiceCount    Int        @default(0)
-  averageScore     Float      @default(0)
-  
+  id                String     @id @default(uuid())
+  title             String
+  description       String     @db.Text
+  category          String
+  difficulty        Difficulty @default(MEDIUM)
+  estimatedDuration Int        @default(15)
+  isActive          Boolean    @default(true)
+  practiceCount     Int        @default(0)
+  averageScore      Float      @default(0)
+
   // Buyer Persona (stored as JSON)
-  buyerPersona     Json
-  
+  buyerPersona Json
+
   // Objections and ideal responses
-  objections       Json
-  idealResponses   Json
-  
+  objections     Json
+  idealResponses Json
+
   // AI Configuration
-  maxTurns         Int        @default(8)
-  scoringWeights   Json?
-  openingPrompt    String?    @db.Text
-  
-  createdById      String
-  createdBy        User       @relation("CreatedScenarios", fields: [createdById], references: [id])
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  maxTurns       Int     @default(8)
+  scoringWeights Json?
+  openingPrompt  String? @db.Text
+
+  createdById String
+  createdBy   User     @relation("CreatedScenarios", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
-  sessions         Session[]
+  sessions Session[]
 
   @@map("scenarios")
 }
@@ -144,19 +145,23 @@ enum Difficulty {
 
 // Session model (practice session)
 model Session {
-  id           String        @id @default(uuid())
-  userId       String
-  user         User          @relation(fields: [userId], references: [id])
-  scenarioId   String
-  scenario     Scenario      @relation(fields: [scenarioId], references: [id])
-  status       SessionStatus @default(ACTIVE)
-  startedAt    DateTime      @default(now())
-  completedAt  DateTime?
+  id          String        @id @default(uuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  scenarioId  String
+  scenario    Scenario      @relation(fields: [scenarioId], references: [id])
+  status      SessionStatus @default(ACTIVE)
+  startedAt   DateTime      @default(now())
+  completedAt DateTime?
 
   // RelationsAPI
   messages     Message[]
   feedback     Feedback?
   email        FollowUpEmail?
+  // This is the "Back-Reference". 
+  // It does NOT create a column in MySQL. 
+  // It only tells Prisma that a JOIN is possible.
+  conversations Conversation[]
 
   @@map("sessions")
 }
@@ -169,13 +174,21 @@ enum SessionStatus {
 
 // Message model
 model Message {
-  id        String      @id @default(uuid())
-  sessionId String
-  session   Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  role      MessageRole
-  content   String      @db.Text
-  timestamp DateTime    @default(now())
+  id             String        @id @default(uuid())
+  sessionId      String
+  session        Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  conversationId String? // Link to conversation for easier querying
+  conversation   Conversation? @relation("ConversationMessages", fields: [conversationId], references: [id], onDelete: Cascade)
+  role           MessageRole
+  content        String        @db.Text
+  timestamp      DateTime      @default(now())
 
+  // Message metadata
+  embeddings Json? // Store vector embeddings for semantic search (optional)
+
+  @@index([sessionId])
+  @@index([conversationId])
+  @@index([timestamp])
   @@map("messages")
 }
 
@@ -185,13 +198,64 @@ enum MessageRole {
   SYSTEM
 }
 
+// Conversation model - High-level abstraction for recording and managing chat histories
+model Conversation {
+  id         String  @id @default(uuid())
+  sessionId  String
+  session    Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User    @relation("UserConversations", fields: [userId], references: [id], onDelete: Cascade)
+  scenarioId String
+
+  // Conversation metadata
+  title     String? // Optional title for the conversation
+  summary   String? @db.Text // AI-generated or user-provided summary
+  keyTopics Json? // Array of key topics discussed
+  tags      Json? // Array of custom tags for categorization
+
+  // Conversation statistics
+  messageCount     Int    @default(0) // Total messages (user + AI)
+  userMessageCount Int    @default(0) // User messages only
+  aiMessageCount   Int    @default(0) // AI messages only
+  averageSentiment Float? // -1 to 1, sentiment analysis of user messages
+
+  // Conversation state
+  isArchived  Boolean @default(false) // For archiving old conversations
+  isPinned    Boolean @default(false) // For pinning important conversations
+  isFavorited Boolean @default(false) // User can mark as favorite
+
+  // Timestamps
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime? // When conversation ended
+  lastMessageAt DateTime  @default(now()) @updatedAt // For sorting by recency
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  recordingUrl String? // Quick access to the audio link
+  mediaId      String? // Relation to the formal Media table
+  media        Media?  @relation(fields: [mediaId], references: [id])
+
+  // Relations
+  messages Message[] @relation("ConversationMessages")
+
+  // Indexes for common queries
+  @@index([userId])
+  @@index([sessionId])
+  @@index([scenarioId])
+  @@index([isArchived])
+  @@index([isFavorited])
+  @@index([lastMessageAt]) // For sorting by recent
+  @@index([createdAt]) // For sorting by creation time
+  @@map("conversations")
+}
+
 // Feedback model
 model Feedback {
   id              String   @id @default(uuid())
   sessionId       String   @unique
   session         Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   overallScore    Int
-  dimensions      Json     // Array of FeedbackDimension
+  dimensions      Json // Array of FeedbackDimension
   summary         String   @db.Text
   recommendations Json
   createdAt       DateTime @default(now())
@@ -247,9 +311,13 @@ model AIModel {
   apiKey      String?          @db.Text
   isDefault   Boolean          @default(false)
   isActive    Boolean          @default(true)
-  config      Json?            // Additional configuration / 附加配置
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  config      Json? // Additional configuration
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([category])
   @@map("ai_models")
@@ -270,12 +338,12 @@ model SystemSetting {
 model BuyerPersonaTemplate {
   id          String   @id @default(uuid())
   name        String
-  role        String   // e.g., 'CTO', 'Compliance Director'
+  role        String // e.g., 'CTO', 'Compliance Director'
   company     String
   background  String   @db.Text
   concerns    Json
   personality String
-  category    String   // e.g., 'Technical', 'Business', 'Procurement'
+  category    String // e.g., 'Technical', 'Business', 'Procurement'
   isDefault   Boolean  @default(false)
   isActive    Boolean  @default(true)
   createdById String?
@@ -291,11 +359,11 @@ model OperationLog {
   id            String   @id @default(uuid())
   userId        String
   user          User     @relation("UserOperations", fields: [userId], references: [id])
-  operationType String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, etc.
-  targetType    String   // USER, SCENARIO, SETTING, etc.
+  operationType String // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, etc.
+  targetType    String // USER, SCENARIO, SETTING, etc.
   targetId      String?
   description   String   @db.Text
-  details       Json?    // Additional operation details
+  details       Json? // Additional operation details
   ipAddress     String?
   userAgent     String?
   createdAt     DateTime @default(now())
@@ -311,21 +379,22 @@ model OperationLog {
 
 // Media - 媒体文件
 model Media {
-  id            String      @id @default(uuid())
-  name          String      // 文件名
-  originalName  String      // 原始文件名
-  path          String      // 文件路径
-  url           String      // 访问URL
-  mimeType      String      // MIME类型
-  size          Int         // 文件大小(bytes)
-  width         Int?        // 图片宽度
-  height        Int?        // 图片高度
-  storageType   StorageType @default(LOCAL)
-  bucket        String?     // 存储桶名称
+  id            String         @id @default(uuid())
+  name          String // 文件名
+  originalName  String // 原始文件名
+  path          String // 文件路径
+  url           String // 访问URL
+  mimeType      String // MIME类型
+  size          Int // 文件大小(bytes)
+  width         Int? // 图片宽度
+  height        Int? // 图片高度
+  storageType   StorageType    @default(LOCAL)
+  bucket        String? // 存储桶名称
   uploadedById  String
-  uploadedBy    User        @relation("MediaUploader", fields: [uploadedById], references: [id])
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  uploadedBy    User           @relation("MediaUploader", fields: [uploadedById], references: [id])
+  conversations Conversation[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@index([uploadedById])
   @@index([mimeType])
@@ -340,28 +409,28 @@ enum StorageType {
 
 // Storage Config - 存储配置
 model StorageConfig {
-  id          String      @id @default(uuid())
-  type        StorageType @unique
-  name        String
-  isEnabled   Boolean     @default(false)
-  isDefault   Boolean     @default(false)
+  id                 String      @id @default(uuid())
+  type               StorageType @unique
+  name               String
+  isEnabled          Boolean     @default(false)
+  isDefault          Boolean     @default(false)
   // 阿里云OSS配置
-  accessKeyId     String?
-  accessKeySecret String?
-  endpoint        String?
-  bucket          String?
-  region          String?
+  accessKeyId        String?
+  accessKeySecret    String?
+  endpoint           String?
+  bucket             String?
+  region             String?
   // AWS S3配置
   awsAccessKeyId     String?
   awsSecretAccessKey String?
   awsRegion          String?
   awsBucket          String?
   // 通用配置
-  baseUrl         String?   // CDN或访问域名
-  maxFileSize     Int       @default(10485760) // 默认10MB
-  allowedMimeTypes Json // 允许的文件类型
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  baseUrl            String? // CDN或访问域名
+  maxFileSize        Int         @default(10485760) // 默认10MB
+  allowedMimeTypes   Json // 允许的文件类型
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
   @@map("storage_configs")
 }
@@ -370,27 +439,27 @@ model StorageConfig {
 
 // Plugin - 插件
 model Plugin {
-  id            String       @id @default(uuid())
-  slug          String       @unique   // 唯一标识符
+  id            String         @id @default(uuid())
+  slug          String         @unique // 唯一标识符
   name          String
-  description   String?      @db.Text
+  description   String?        @db.Text
   icon          String?
-  version       String       @default("1.0.0")
+  version       String         @default("1.0.0")
   author        String?
   category      PluginCategory
-  price         Float        @default(0)  // 0表示免费
-  downloadCount Int          @default(0)
-  rating        Float        @default(0)
-  isActive      Boolean      @default(true)
-  isFeatured    Boolean      @default(false)
-  config        Json?        // 插件配置模板
-  permissions   Json     // 所需权限
-  dependencies  Json     // 依赖其他插件
-  changelog     Json?        // 版本更新日志
-  screenshots   Json     // 截图URL
-  documentation String?      @db.Text
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  price         Float          @default(0) // 0表示免费
+  downloadCount Int            @default(0)
+  rating        Float          @default(0)
+  isActive      Boolean        @default(true)
+  isFeatured    Boolean        @default(false)
+  config        Json? // 插件配置模板
+  permissions   Json // 所需权限
+  dependencies  Json // 依赖其他插件
+  changelog     Json? // 版本更新日志
+  screenshots   Json // 截图URL
+  documentation String?        @db.Text
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   // Relations
   installations PluginInstallation[]
@@ -399,25 +468,25 @@ model Plugin {
 }
 
 enum PluginCategory {
-  AI_TOOLS        // AI工具
-  ANALYTICS       // 数据分析
-  COMMUNICATION   // 沟通工具
-  PRODUCTIVITY    // 效率工具
-  INTEGRATION     // 集成
-  MARKETING       // 营销
-  CONTENT         // 内容
-  OTHER           // 其他
+  AI_TOOLS // AI工具
+  ANALYTICS // 数据分析
+  COMMUNICATION // 沟通工具
+  PRODUCTIVITY // 效率工具
+  INTEGRATION // 集成
+  MARKETING // 营销
+  CONTENT // 内容
+  OTHER // 其他
 }
 
 // Plugin Installation - 用户安装的插件
 model PluginInstallation {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   pluginId    String
-  plugin      Plugin    @relation(fields: [pluginId], references: [id], onDelete: Cascade)
-  isEnabled   Boolean   @default(true)
-  config      Json?     // 用户自定义配置
-  installedAt DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  plugin      Plugin   @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+  isEnabled   Boolean  @default(true)
+  config      Json? // 用户自定义配置
+  installedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([pluginId])
   @@map("plugin_installations")
@@ -427,43 +496,43 @@ model PluginInstallation {
 
 // Article Category - 文章分类
 model ArticleCategory {
-  id          String    @id @default(uuid())
+  id          String            @id @default(uuid())
   name        String
-  slug        String    @unique
+  slug        String            @unique
   description String?
   parentId    String?
   parent      ArticleCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children    ArticleCategory[] @relation("CategoryHierarchy")
-  sortOrder   Int       @default(0)
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  sortOrder   Int               @default(0)
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 
-  articles    Article[]
+  articles Article[]
 
   @@map("article_categories")
 }
 
 // Article - 文章
 model Article {
-  id          String          @id @default(uuid())
-  title       String
-  slug        String          @unique
-  content     String          @db.Text
-  excerpt     String?         @db.Text
-  coverImage  String?
-  categoryId  String?
-  category    ArticleCategory? @relation(fields: [categoryId], references: [id])
-  authorId    String
-  author      User            @relation("ArticleAuthor", fields: [authorId], references: [id])
-  status      ArticleStatus   @default(DRAFT)
-  viewCount   Int             @default(0)
-  tags        Json
-  seoTitle    String?
+  id             String           @id @default(uuid())
+  title          String
+  slug           String           @unique
+  content        String           @db.Text
+  excerpt        String?          @db.Text
+  coverImage     String?
+  categoryId     String?
+  category       ArticleCategory? @relation(fields: [categoryId], references: [id])
+  authorId       String
+  author         User             @relation("ArticleAuthor", fields: [authorId], references: [id])
+  status         ArticleStatus    @default(DRAFT)
+  viewCount      Int              @default(0)
+  tags           Json
+  seoTitle       String?
   seoDescription String?
-  publishedAt DateTime?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  publishedAt    DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
   @@index([categoryId])
   @@index([authorId])
@@ -481,19 +550,19 @@ enum ArticleStatus {
 
 // Notification - 通知模板
 model Notification {
-  id          String            @id @default(uuid())
+  id          String             @id @default(uuid())
   title       String
-  content     String            @db.Text
+  content     String             @db.Text
   type        NotificationType
   targetType  NotificationTarget
-  targetIds   Json          // 目标用户ID列表,空表示全部
-  isRead      Boolean           @default(false)
-  sendAt      DateTime?         // 定时发送时间
-  sentAt      DateTime?         // 实际发送时间
+  targetIds   Json // 目标用户ID列表,空表示全部
+  isRead      Boolean            @default(false)
+  sendAt      DateTime? // 定时发送时间
+  sentAt      DateTime? // 实际发送时间
   createdById String?
-  metadata    Json?             // 额外数据
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  metadata    Json? // 额外数据
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 
   userNotifications UserNotification[]
 
@@ -501,29 +570,29 @@ model Notification {
 }
 
 enum NotificationType {
-  SYSTEM        // 系统通知
-  ANNOUNCEMENT  // 公告
-  PROMOTION     // 推广
-  REMINDER      // 提醒
-  UPDATE        // 更新
+  SYSTEM // 系统通知
+  ANNOUNCEMENT // 公告
+  PROMOTION // 推广
+  REMINDER // 提醒
+  UPDATE // 更新
 }
 
 enum NotificationTarget {
-  ALL           // 所有用户
-  SPECIFIC      // 指定用户
-  ROLE          // 按角色
+  ALL // 所有用户
+  SPECIFIC // 指定用户
+  ROLE // 按角色
 }
 
 // User Notification - 用户通知关联
 model UserNotification {
-  id              String       @id @default(uuid())
-  userId          String
-  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  notificationId  String
-  notification    Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
-  isRead          Boolean      @default(false)
-  readAt          DateTime?
-  createdAt       DateTime     @default(now())
+  id             String       @id @default(uuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  isRead         Boolean      @default(false)
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
 
   @@unique([userId, notificationId])
   @@map("user_notifications")
@@ -533,72 +602,72 @@ model UserNotification {
 
 // Payment Config - 支付配置
 model PaymentConfig {
-  id            String        @id @default(uuid())
-  provider      PaymentProvider @unique
-  name          String
-  isEnabled     Boolean       @default(false)
-  isSandbox     Boolean       @default(false)  // 是否测试模式
+  id                  String          @id @default(uuid())
+  provider            PaymentProvider @unique
+  name                String
+  isEnabled           Boolean         @default(false)
+  isSandbox           Boolean         @default(false) // 是否测试模式
   // 微信支付
-  wechatAppId       String?
-  wechatMchId       String?
-  wechatApiKey      String?
-  wechatCertPath    String?
+  wechatAppId         String?
+  wechatMchId         String?
+  wechatApiKey        String?
+  wechatCertPath      String?
   // 支付宝
-  alipayAppId       String?
-  alipayPrivateKey  String?   @db.Text
-  alipayPublicKey   String?   @db.Text
+  alipayAppId         String?
+  alipayPrivateKey    String?         @db.Text
+  alipayPublicKey     String?         @db.Text
   // PayPal
-  paypalClientId    String?
-  paypalSecret      String?
+  paypalClientId      String?
+  paypalSecret        String?
   // Stripe
-  stripePublicKey   String?
-  stripeSecretKey   String?
+  stripePublicKey     String?
+  stripeSecretKey     String?
   stripeWebhookSecret String?
   // 易支付
-  epayUrl           String?
-  epayPid           String?
-  epayKey           String?
+  epayUrl             String?
+  epayPid             String?
+  epayKey             String?
   // 通用配置
-  notifyUrl     String?
-  returnUrl     String?
-  sortOrder     Int           @default(0)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  notifyUrl           String?
+  returnUrl           String?
+  sortOrder           Int             @default(0)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
 
   @@map("payment_configs")
 }
 
 enum PaymentProvider {
-  WECHAT        // 微信支付
-  ALIPAY        // 支付宝
-  PAYPAL        // PayPal
-  STRIPE        // Stripe
-  EPAY          // 易支付
+  WECHAT // 微信支付
+  ALIPAY // 支付宝
+  PAYPAL // PayPal
+  STRIPE // Stripe
+  EPAY // 易支付
 }
 
 // ==================== 订单管理 Order Management ====================
 
 // Order - 订单
 model Order {
-  id            String        @id @default(uuid())
-  orderNo       String        @unique
+  id            String           @id @default(uuid())
+  orderNo       String           @unique
   userId        String
-  user          User          @relation(fields: [userId], references: [id])
+  user          User             @relation(fields: [userId], references: [id])
   orderType     OrderType
-  status        OrderStatus   @default(PENDING)
+  status        OrderStatus      @default(PENDING)
   amount        Float
-  currency      String        @default("USD")
+  currency      String           @default("USD")
   paymentMethod PaymentProvider?
-  transactionId String?       // 支付平台交易号
-  productId     String?       // 商品ID(会员套餐ID等)
-  productName   String        // 商品名称
-  productDesc   String?       // 商品描述
-  metadata      Json?         // 订单额外信息
+  transactionId String? // 支付平台交易号
+  productId     String? // 商品ID(会员套餐ID等)
+  productName   String // 商品名称
+  productDesc   String? // 商品描述
+  metadata      Json? // 订单额外信息
   paidAt        DateTime?
   refundedAt    DateTime?
-  expiredAt     DateTime?     // 订单过期时间
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  expiredAt     DateTime? // 订单过期时间
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   @@index([userId])
   @@index([orderNo])
@@ -607,42 +676,42 @@ model Order {
 }
 
 enum OrderType {
-  MEMBERSHIP    // 会员套餐
-  POINTS        // 积分购买
-  PLUGIN        // 插件购买
-  OTHER         // 其他
+  MEMBERSHIP // 会员套餐
+  POINTS // 积分购买
+  PLUGIN // 插件购买
+  OTHER // 其他
 }
 
 enum OrderStatus {
-  PENDING       // 待支付
-  PAID          // 已支付
-  COMPLETED     // 已完成
-  CANCELLED     // 已取消
-  REFUNDED      // 已退款
-  EXPIRED       // 已过期
+  PENDING // 待支付
+  PAID // 已支付
+  COMPLETED // 已完成
+  CANCELLED // 已取消
+  REFUNDED // 已退款
+  EXPIRED // 已过期
 }
 
 // ==================== 会员套餐 Membership Plans ====================
 
 // Membership Plan - 会员套餐
 model MembershipPlan {
-  id            String      @id @default(uuid())
+  id            String   @id @default(uuid())
   name          String
-  slug          String      @unique
-  description   String?     @db.Text
+  slug          String   @unique
+  description   String?  @db.Text
   price         Float
-  originalPrice Float?      // 原价(用于显示折扣)
-  currency      String      @default("USD")
-  duration      Int         // 天数
-  features      Json        // 功能列表
-  limits        Json?       // 使用限制(如AI对话次数等)
-  isActive      Boolean     @default(true)
-  isFeatured    Boolean     @default(false)
-  sortOrder     Int         @default(0)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  originalPrice Float? // 原价(用于显示折扣)
+  currency      String   @default("USD")
+  duration      Int // 天数
+  features      Json // 功能列表
+  limits        Json? // 使用限制(如AI对话次数等)
+  isActive      Boolean  @default(true)
+  isFeatured    Boolean  @default(false)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  users         User[]
+  users User[]
 
   @@map("membership_plans")
 }
@@ -651,31 +720,31 @@ model MembershipPlan {
 
 // Points Config - 积分配置
 model PointsConfig {
-  id              String    @id @default(uuid())
-  key             String    @unique
-  name            String
-  description     String?
-  points          Int       // 积分值(正为获得,负为消耗)
-  isEnabled       Boolean   @default(true)
-  dailyLimit      Int?      // 每日限制次数
-  totalLimit      Int?      // 总限制次数
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String?
+  points      Int // 积分值(正为获得,负为消耗)
+  isEnabled   Boolean  @default(true)
+  dailyLimit  Int? // 每日限制次数
+  totalLimit  Int? // 总限制次数
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@map("points_configs")
 }
 
 // Point Record - 积分记录
 model PointRecord {
-  id          String      @id @default(uuid())
+  id          String    @id @default(uuid())
   userId      String
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  points      Int         // 变动积分
-  balance     Int         // 变动后余额
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  points      Int // 变动积分
+  balance     Int // 变动后余额
   type        PointType
   description String
-  relatedId   String?     // 关联ID(订单ID等)
-  createdAt   DateTime    @default(now())
+  relatedId   String? // 关联ID(订单ID等)
+  createdAt   DateTime  @default(now())
 
   @@index([userId])
   @@index([type])
@@ -683,25 +752,25 @@ model PointRecord {
 }
 
 enum PointType {
-  EARN          // 获得
-  SPEND         // 消费
-  REFUND        // 退还
-  ADJUST        // 调整
-  EXPIRE        // 过期
+  EARN // 获得
+  SPEND // 消费
+  REFUND // 退还
+  ADJUST // 调整
+  EXPIRE // 过期
 }
 
 // ==================== 角色权限管理 Role Permission Management ====================
 
 // Role - 角色
 model Role {
-  id          String    @id @default(uuid())
-  name        String    @unique
+  id          String   @id @default(uuid())
+  name        String   @unique
   displayName String
   description String?
-  isSystem    Boolean   @default(false)  // 系统内置角色
-  permissions Json  // 权限列表
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  isSystem    Boolean  @default(false) // 系统内置角色
+  permissions Json // 权限列表
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   userAssignments UserRoleAssignment[]
 
@@ -710,12 +779,12 @@ model Role {
 
 // User Role Assignment - 用户角色分配
 model UserRoleAssignment {
-  id        String    @id @default(uuid())
+  id        String   @id @default(uuid())
   userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   roleId    String
-  role      Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  createdAt DateTime  @default(now())
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 
   @@unique([userId, roleId])
   @@map("user_role_assignments")
@@ -723,14 +792,14 @@ model UserRoleAssignment {
 
 // Permission - 权限定义(用于前端展示)
 model Permission {
-  id          String    @id @default(uuid())
-  key         String    @unique
+  id          String   @id @default(uuid())
+  key         String   @unique
   name        String
   description String?
-  module      String    // 模块
-  sortOrder   Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  module      String // 模块
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@map("permissions")
 }
@@ -739,15 +808,15 @@ model Permission {
 
 // Language - 支持的语言
 model Language {
-  id          String    @id @default(uuid())
-  code        String    @unique   // 语言代码 en, zh-CN, etc.
-  name        String              // 语言名称
-  nativeName  String              // 本地名称
-  isEnabled   Boolean   @default(true)
-  isDefault   Boolean   @default(false)
-  sortOrder   Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id         String   @id @default(uuid())
+  code       String   @unique // 语言代码 en, zh-CN, etc.
+  name       String // 语言名称
+  nativeName String // 本地名称
+  isEnabled  Boolean  @default(true)
+  isDefault  Boolean  @default(false)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   translations Translation[]
 
@@ -756,14 +825,14 @@ model Language {
 
 // Translation - 翻译
 model Translation {
-  id          String    @id @default(uuid())
-  languageId  String
-  language    Language  @relation(fields: [languageId], references: [id], onDelete: Cascade)
-  key         String    // 翻译键
-  value       String    @db.Text   // 翻译值
-  namespace   String    @default("common") // 命名空间
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id         String   @id @default(uuid())
+  languageId String
+  language   Language @relation(fields: [languageId], references: [id], onDelete: Cascade)
+  key        String // 翻译键
+  value      String   @db.Text // 翻译值
+  namespace  String   @default("common") // 命名空间
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([languageId, key, namespace])
   @@index([key])

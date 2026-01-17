@@ -118,3 +118,7 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 
 export default app;
 
+/**
+ * Export app for socket.io integration
+ */
+export { app };
