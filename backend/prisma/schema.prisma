@@ -770,3 +770,46 @@ model Translation {
   @@map("translations")
 }
 
+// ==================== RAG Document Management / RAG文档管理 ====================
+
+// RAG Document Status - RAG文档状态
+enum RAGDocumentStatus {
+  PENDING       // 待处理
+  PROCESSING    // 处理中
+  COMPLETED     // 已完成
+  FAILED        // 失败
+}
+
+// RAG Document - RAG文档
+// Stores uploaded documents for RAG / 存储用于RAG的上传文档
+model RAGDocument {
+  id              String            @id @default(uuid())
+  name            String            // Display name / 显示名称
+  originalName    String            // Original file name / 原始文件名
+  fileType        String            // File extension / 文件扩展名
+  filePath        String            // Storage path / 存储路径
+  fileSize        Int               // File size in bytes / 文件大小（字节）
+  mimeType        String?           // MIME type / MIME类型
+  // Processing info / 处理信息
+  status          RAGDocumentStatus @default(PENDING)
+  chunkCount      Int               @default(0)      // Number of chunks / 块数量
+  chunkSize       Int               @default(500)    // Chunk size setting / 块大小设置
+  chunkOverlap    Int               @default(50)     // Chunk overlap setting / 块重叠设置
+  vectorCount     Int               @default(0)      // Successfully vectorized count / 成功向量化数量
+  errorMessage    String?           @db.Text         // Error message if failed / 失败时的错误信息
+  processedAt     DateTime?         // Processing completion time / 处理完成时间
+  // Metadata / 元数据
+  description     String?           @db.Text         // Document description / 文档描述
+  tags            Json?             // Tags for categorization / 分类标签
+  collectionName  String            @default("bettermeCollection") // Vector collection name / 向量集合名称
+  // Audit fields / 审计字段
+  uploadedById    String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([status])
+  @@index([fileType])
+  @@index([uploadedById])
+  @@map("rag_documents")
+}
+

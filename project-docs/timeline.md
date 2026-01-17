@@ -2,6 +2,79 @@
 
 ## 版本历史 / Version History
 
+### v1.2.5 (2026-01-17) - AI Service Documentation / AI服务集成文档
+
+**变更说明 / Change Description:**
+
+1. **新增AI服务集成指南文档 / Added AI Service Integration Guide**
+   - 创建 `project-docs/ai-service-guide.md` 中英文文档
+   - 包含完整的环境配置说明
+   - 后端 aiService 所有方法的使用示例
+   - 前端通过 API 调用 AI 的方式
+   - RAG 向量检索实现示例
+   - 常见问题解答
+
+**文档内容 / Document Contents:**
+- 概述 / Overview
+- 环境配置 / Environment Configuration
+- 后端调用方式 / Backend Usage
+- 前端调用方式 / Frontend Usage
+- API参考 / API Reference
+- RAG向量检索 / RAG Vector Search
+- 常见问题 / FAQ
+
+**新增文件 / Added Files:**
+- `project-docs/ai-service-guide.md`
+
+---
+
+### v1.2.4 (2026-01-17) - Admin Backend Simplification & Environment Configuration / 管理后台简化与环境配置优化
+
+**变更说明 / Change Description:**
+
+1. **管理员后台功能简化 / Admin Backend Simplification**
+   - 只保留核心功能模块：Overview, Scenarios, Personas, Products, Users, Statistics
+   - 移除以下路由：
+     - AI Models 管理 (ai-models/*)
+     - System Settings (settings/*)
+     - Operation Logs (logs/*)
+     - Export (export/*)
+   - 保留的路由仍然完整可用
+
+2. **环境变量配置优化 / Environment Configuration Enhancement**
+   - 创建 `.env.example` 示例文件
+   - AI模型配置集中到环境变量：
+     - `DASHSCOPE_API_KEY`: 阿里云百炼API密钥
+     - `AI_API_BASE_URL`: AI API基础URL
+     - `AI_DEFAULT_MODEL`: 默认对话模型
+     - `AI_DEFAULT_TTS_MODEL`: 默认TTS模型
+     - `AI_DEFAULT_STT_MODEL`: 默认STT模型
+     - `AI_DEFAULT_EMBEDDING_MODEL`: 默认向量模型
+     - `AI_TIMEOUT`: 请求超时时间
+     - `AI_MAX_TOKENS`: 最大Token数
+     - `AI_TEMPERATURE`: 温度参数
+
+3. **阿里云OSS存储环境配置 / Aliyun OSS Environment Configuration**
+   - 新增OSS相关环境变量：
+     - `OSS_ACCESS_KEY_ID`: 访问密钥ID
+     - `OSS_ACCESS_KEY_SECRET`: 访问密钥
+     - `OSS_REGION`: OSS区域
+     - `OSS_BUCKET`: 存储桶名称
+     - `OSS_ENDPOINT`: OSS端点
+     - `OSS_BASE_URL`: CDN/自定义域名
+   - 在 config/index.ts 中添加OSS配置读取
+
+**修改文件 / Modified Files:**
+- `backend/src/routes/admin.ts` - 移除不需要的路由
+- `backend/src/config/index.ts` - 添加OSS配置
+- `backend/.env.example` - 新建环境变量示例文件
+
+**API文档参考 / API Documentation:**
+- 阿里云百炼API: https://help.aliyun.com/zh/model-studio/get-api-key
+- 阿里云OSS: https://help.aliyun.com/document_detail/31886.html
+
+---
+
 ### v1.2.3 (2026-01-17) - Aliyun OSS Storage Integration / 阿里云OSS存储集成
 
 **新增功能 / New Features:**
@@ -573,6 +646,7 @@
 
 | 日期 Date | 版本 Version | 描述 Description |
 |-----------|-------------|------------------|
+| 2026-01-17 | v1.2.4 | 管理后台简化 & 环境配置优化 - 只保留核心功能，AI和OSS配置移至env文件 |
 | 2026-01-17 | v1.2.3 | 阿里云OSS存储集成 - 文件上传、删除、签名URL、连接测试等 |
 | 2026-01-14 | v1.1.0 | Admin系统扩展 - 登录管理、媒体、存储、插件、文章、通知、支付、订单、会员、积分、角色权限、多语言 |
 | 2026-01-14 | v1.0.3 | Admin模块完成 - 用户管理、设置、日志、AI模型、角色模板、统计 |
@@ -582,4 +656,4 @@
 
 ---
 
-*最后更新 / Last Updated: 2026-01-17*
+*最后更新 / Last Updated: 2026-01-17 (v1.2.4)*

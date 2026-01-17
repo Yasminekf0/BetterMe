@@ -2,26 +2,15 @@ import { Router, Response } from 'express';
 import { authenticate, adminOnly, trainerOrAdmin, AuthRequest } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
 import { logger } from '../utils/logger';
-import { aiService, AIModelType } from '../services/aiService';
 import bcrypt from 'bcryptjs';
 import {
-  getSettings,
-  getSettingsByCategory,
-  updateSettings,
-  resetSettings,
-  getOperationLogs,
+  // Personas routes / 角色模板路由
   getPersonaTemplates,
   createPersonaTemplate,
   updatePersonaTemplate,
   deletePersonaTemplate,
-  getAIModels,
-  createAIModel,
-  updateAIModel,
-  deleteAIModel,
-  testAIModel,
-  testAIModelDirect,
+  // User details route / 用户详情路由
   getUserDetails,
-  exportStatistics,
 } from '../controllers/adminController';
 import { logOperation, OperationType, TargetType } from '../services/operationLogService';
 
@@ -586,141 +575,7 @@ router.delete('/users/:id', adminOnly, async (req: AuthRequest, res: Response) =
   }
 });
 
-/**
- * Get Available AI Models (includes service defaults and database models)
- * 获取可用AI模型（包含服务默认模型和数据库模型）
- * GET /api/admin/ai-models/available
- * 
- * Supports Aliyun Bailian model categories / 支持阿里云百炼模型分类:
- * - CHAT: Text chat models (文本对话模型)
- * - TTS: Text-to-Speech models (语音合成模型)
- * - STT: Speech-to-Text models (语音转文字模型)
- * - EMBEDDING: Vector/Embedding models (向量模型)
- * - MULTIMODAL: Multimodal models (多模态模型)
- * 
- * Query params / 查询参数:
- * - category: Optional filter by model category / 可选按模型分类筛选
- * 
- * API Doc: https://help.aliyun.com/zh/model-studio/
- */
-router.get('/ai-models/available', trainerOrAdmin, async (req: AuthRequest, res: Response) => {
-  try {
-    const { category } = req.query;
-
-    // Valid categories / 有效的分类
-    const validCategories = ['CHAT', 'TTS', 'STT', 'EMBEDDING', 'MULTIMODAL'];
-    
-    // Validate category if provided / 验证分类（如果提供）
-    if (category && !validCategories.includes(category as string)) {
-      res.status(400).json({
-        success: false,
-        error: `Invalid category. Must be one of: ${validCategories.join(', ')} / 无效的分类，必须是以下之一: ${validCategories.join(', ')}`,
-      });
-      return;
-    }
-
-    // Get models from AI service / 从AI服务获取模型
-    let defaultModels = aiService.getAvailableModels();
-    
-    // Filter by category if specified / 如果指定则按分类筛选
-    if (category) {
-      defaultModels = aiService.getModelsByType(category as AIModelType);
-    }
-
-    // Group default models by category / 按分类分组默认模型
-    const groupedDefaultModels = {
-      chat: defaultModels.filter(m => m.type === AIModelType.CHAT),
-      tts: defaultModels.filter(m => m.type === AIModelType.TTS),
-      stt: defaultModels.filter(m => m.type === AIModelType.STT),
-      embedding: defaultModels.filter(m => m.type === AIModelType.EMBEDDING),
-    };
-
-    // Get models from database, using category field directly
-    // 从数据库获取模型，直接使用category字段
-    const whereClause: Record<string, unknown> = { isActive: true };
-    if (category) {
-      whereClause.category = category;
-    }
-
-    const dbModels = await prisma.aIModel.findMany({
-      where: whereClause,
-      orderBy: [{ category: 'asc' }, { isDefault: 'desc' }, { name: 'asc' }],
-    });
-
-    // Group database models by category field / 按category字段分组数据库模型
-    const groupedDbModels = {
-      chat: dbModels.filter(m => m.category === 'CHAT'),
-      tts: dbModels.filter(m => m.category === 'TTS'),
-      stt: dbModels.filter(m => m.category === 'STT'),
-      embedding: dbModels.filter(m => m.category === 'EMBEDDING'),
-      multimodal: dbModels.filter(m => m.category === 'MULTIMODAL'),
-    };
-
-    // Mask API keys for security / 为安全起见遮蔽API密钥
-    const maskedDbModels = dbModels.map(m => ({
-      ...m,
-      apiKey: m.apiKey ? `${m.apiKey.substring(0, 8)}****` : null,
-    }));
-
-    res.json({
-      success: true,
-      data: {
-        // All models / 所有模型
-        defaultModels,
-        customModels: maskedDbModels,
-        // Grouped by category / 按分类分组
-        byCategory: {
-          default: groupedDefaultModels,
-          custom: groupedDbModels,
-        },
-        // Available model categories / 可用模型分类
-        categories: validCategories,
-      },
-    });
-  } catch (error) {
-    logger.error('Get AI models error / 获取AI模型错误', { error });
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get AI models / 获取AI模型失败',
-    });
-  }
-});
-
-// ==================== System Settings Routes ====================
-
-/**
- * Get All System Settings
- * GET /api/admin/settings
- */
-router.get('/settings', adminOnly, getSettings);
-
-/**
- * Get Settings by Category
- * GET /api/admin/settings/:category
- */
-router.get('/settings/:category', adminOnly, getSettingsByCategory);
-
-/**
- * Update System Settings
- * PUT /api/admin/settings
- */
-router.put('/settings', adminOnly, updateSettings);
-
-/**
- * Reset Settings to Defaults
- * POST /api/admin/settings/reset
- */
-router.post('/settings/reset', adminOnly, resetSettings);
-
-// ==================== Operation Logs Routes ====================
-
-/**
- * Get Operation Logs
- * GET /api/admin/logs
- */
-router.get('/logs', adminOnly, getOperationLogs);
-
-// ==================== Buyer Persona Templates Routes ====================
+// ==================== Buyer Persona Templates Routes / 买家角色模板路由 ====================
 
 /**
  * Get All Buyer Persona Templates
@@ -746,46 +601,7 @@ router.put('/personas/:id', trainerOrAdmin, updatePersonaTemplate);
  */
 router.delete('/personas/:id', adminOnly, deletePersonaTemplate);
 
-// ==================== AI Model Management Routes ====================
-
-/**
- * Get All AI Models
- * GET /api/admin/ai-models
- */
-router.get('/ai-models', adminOnly, getAIModels);
-
-/**
- * Test AI Model Connection Directly (without database record)
- * POST /api/admin/ai-models/test-direct
- * Note: This route must be defined before /:id routes to avoid conflicts
- */
-router.post('/ai-models/test-direct', adminOnly, testAIModelDirect);
-
-/**
- * Create AI Model
- * POST /api/admin/ai-models
- */
-router.post('/ai-models', adminOnly, createAIModel);
-
-/**
- * Test AI Model Connection
- * POST /api/admin/ai-models/:id/test
- */
-router.post('/ai-models/:id/test', adminOnly, testAIModel);
-
-/**
- * Update AI Model
- * PUT /api/admin/ai-models/:id
- */
-router.put('/ai-models/:id', adminOnly, updateAIModel);
-
-/**
- * Delete AI Model
- * DELETE /api/admin/ai-models/:id
- */
-router.delete('/ai-models/:id', adminOnly, deleteAIModel);
-
-// ==================== User Details Routes ====================
+// ==================== User Details Routes / 用户详情路由 ====================
 
 /**
  * Get User Details with Statistics
@@ -793,13 +609,9 @@ router.delete('/ai-models/:id', adminOnly, deleteAIModel);
  */
 router.get('/users/:id', adminOnly, getUserDetails);
 
-// ==================== Export Routes ====================
-
-/**
- * Export Statistics Report
- * GET /api/admin/export/statistics
- */
-router.get('/export/statistics', adminOnly, exportStatistics);
+// ==================== Products Routes / 产品路由 ====================
+// Note: Products management uses the scenario system for training scenarios
+// 注意：产品管理使用场景系统来管理培训场景
 
 export default router;
 
