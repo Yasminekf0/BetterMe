@@ -221,37 +221,191 @@ async function main() {
   }
 
   // Create default AI models in database
-  // AI模型类型: CHAT (对话), TTS (语音合成), STT (语音转文字), EMBEDDING (向量)
+  // AI模型分类: CHAT (对话), TTS (语音合成), STT (语音转文字), EMBEDDING (向量), MULTIMODAL (多模态)
+  // Different categories have different API endpoints / 不同分类有不同的API端点
+  // API Doc: https://help.aliyun.com/zh/model-studio/
+  // NOTE: apiEndpoint should ONLY contain the base URL, NOT the full path
+  // The endpoint path (e.g., /chat/completions) is appended by aiService
+  // apiEndpoint 只应包含基础URL，不要包含完整路径
+  // 端点路径（如 /chat/completions）由 aiService 自动追加
+  
+  // 阿里云DashScope API Key / Alibaba DashScope API Key
+  const DASHSCOPE_API_KEY = 'sk-52389248f75444f4bf0f37f5afff799d';
+  
   const aiModels = [
-    // Chat Models / 对话模型
-    { modelId: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', isDefault: true, description: 'Most capable GPT-4 model with vision', config: { modelType: 'CHAT' } },
-    { modelId: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', description: 'Smaller, faster, cost-effective GPT-4 model', config: { modelType: 'CHAT' } },
-    { modelId: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'OpenAI', description: 'Fast and efficient for simpler tasks', config: { modelType: 'CHAT' } },
-    { modelId: 'claude-3-opus-20240229', name: 'Claude 3 Opus', provider: 'Anthropic', description: 'Most powerful Claude model', config: { modelType: 'CHAT' } },
-    { modelId: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet', provider: 'Anthropic', description: 'Balanced performance and speed', config: { modelType: 'CHAT' } },
-    { modelId: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', provider: 'Anthropic', description: 'Fast and compact', config: { modelType: 'CHAT' } },
-    { modelId: 'qwen-max', name: 'Qwen Max', provider: 'Alibaba', description: 'Alibaba\'s most capable model', config: { modelType: 'CHAT' } },
-    { modelId: 'qwen-plus', name: 'Qwen Plus', provider: 'Alibaba', description: 'Enhanced Qwen model', config: { modelType: 'CHAT' } },
-    { modelId: 'qwen-turbo', name: 'Qwen Turbo', provider: 'Alibaba', description: 'Fast Qwen model', config: { modelType: 'CHAT' } },
-    { modelId: 'deepseek-chat', name: 'DeepSeek Chat', provider: 'DeepSeek', description: 'General chat model', config: { modelType: 'CHAT' } },
+    // ==================== Chat Models / 对话模型 ====================
+    // Base URL for chat models (endpoint: /chat/completions)
+    // 对话模型基础URL（端点：/chat/completions）
+    { 
+      modelId: 'qwen3-max', 
+      name: 'Qwen3 Max', 
+      provider: 'Alibaba', 
+      category: 'CHAT' as const,
+      isDefault: true, 
+      description: 'Alibaba\'s most capable Qwen3 model / 阿里云最强大的Qwen3模型',
+      apiEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      apiKey: DASHSCOPE_API_KEY,
+      config: {} 
+    },
+    { 
+      modelId: 'qwen-max', 
+      name: 'Qwen Max', 
+      provider: 'Alibaba', 
+      category: 'CHAT' as const,
+      description: 'Alibaba\'s capable model / 阿里云通义千问',
+      apiEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      apiKey: DASHSCOPE_API_KEY,
+      config: {} 
+    },
+    { 
+      modelId: 'qwen-plus', 
+      name: 'Qwen Plus', 
+      provider: 'Alibaba', 
+      category: 'CHAT' as const,
+      description: 'Enhanced Qwen model / 增强版通义千问',
+      apiEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      apiKey: DASHSCOPE_API_KEY,
+      config: {} 
+    },
+    { 
+      modelId: 'qwen-turbo', 
+      name: 'Qwen Turbo', 
+      provider: 'Alibaba', 
+      category: 'CHAT' as const,
+      description: 'Fast Qwen model / 快速版通义千问',
+      apiEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      apiKey: DASHSCOPE_API_KEY,
+      config: {} 
+    },
+    { 
+      modelId: 'deepseek-chat', 
+      name: 'DeepSeek Chat', 
+      provider: 'DeepSeek', 
+      category: 'CHAT' as const,
+      description: 'General chat model',
+      apiEndpoint: 'https://api.deepseek.com/v1',
+      config: {} 
+    },
+    { 
+      modelId: 'gpt-4o', 
+      name: 'GPT-4o', 
+      provider: 'OpenAI', 
+      category: 'CHAT' as const,
+      description: 'Most capable GPT-4 model with vision',
+      apiEndpoint: 'https://api.openai.com/v1',
+      config: {} 
+    },
+    { 
+      modelId: 'gpt-4o-mini', 
+      name: 'GPT-4o Mini', 
+      provider: 'OpenAI', 
+      category: 'CHAT' as const,
+      description: 'Smaller, faster, cost-effective GPT-4 model',
+      apiEndpoint: 'https://api.openai.com/v1',
+      config: {} 
+    },
     
-    // STT Models (Voice to Text / ASR) / 语音转文字模型
-    { modelId: 'qwen3-asr-flash-realtime', name: 'Qwen3 ASR Flash Realtime', provider: 'Alibaba', description: 'Real-time speech to text, low latency / 实时语音转文字，低延迟', config: { modelType: 'STT' } },
-    { modelId: 'qwen2.5-asr-turbo-realtime', name: 'Qwen2.5 ASR Turbo Realtime', provider: 'Alibaba', description: 'Fast speech to text / 快速语音转文字', config: { modelType: 'STT' } },
+    // ==================== STT Models (Speech to Text / ASR) / 语音转文字模型 ====================
+    // STT uses WebSocket endpoint directly (no path appended)
+    // STT使用WebSocket端点（不追加路径）
+    { 
+      modelId: 'qwen3-asr-flash-realtime', 
+      name: 'Qwen3 ASR Flash Realtime', 
+      provider: 'Alibaba', 
+      category: 'STT' as const,
+      description: 'Real-time speech to text, low latency / 实时语音转文字，低延迟',
+      apiEndpoint: 'wss://dashscope.aliyuncs.com/api-ws/v1/realtime',
+      apiKey: DASHSCOPE_API_KEY,
+      config: { format: 'pcm', sampleRate: 16000 } 
+    },
+    { 
+      modelId: 'qwen2.5-asr-turbo-realtime', 
+      name: 'Qwen2.5 ASR Turbo Realtime', 
+      provider: 'Alibaba', 
+      category: 'STT' as const,
+      description: 'Fast speech to text / 快速语音转文字',
+      apiEndpoint: 'wss://dashscope.aliyuncs.com/api-ws/v1/realtime',
+      apiKey: DASHSCOPE_API_KEY,
+      config: { format: 'pcm', sampleRate: 16000 } 
+    },
     
-    // TTS Models (Text to Speech) / 语音合成模型
-    { modelId: 'cosyvoice-v1', name: 'CosyVoice V1', provider: 'Alibaba', description: 'High quality TTS / 高质量语音合成', config: { modelType: 'TTS' } },
-    { modelId: 'sambert-zhichu-v1', name: 'Sambert 知楚', provider: 'Alibaba', description: 'Chinese TTS / 中文语音合成', config: { modelType: 'TTS' } },
+    // ==================== TTS Models (Text to Speech) / 语音合成模型 ====================
+    // Aliyun native TTS API (not OpenAI compatible) / 阿里云原生TTS API（非OpenAI兼容）
+    // Full endpoint: https://dashscope.aliyuncs.com/api/v1/services/aigc/text2audio/generation
+    { 
+      modelId: 'cosyvoice-v1', 
+      name: 'CosyVoice V1', 
+      provider: 'Alibaba', 
+      category: 'TTS' as const,
+      description: 'High quality TTS / 高质量语音合成',
+      apiEndpoint: 'https://dashscope.aliyuncs.com/api/v1',
+      apiKey: DASHSCOPE_API_KEY,
+      config: { voice: 'longxiaochun', format: 'mp3' } 
+    },
+    { 
+      modelId: 'sambert-zhichu-v1', 
+      name: 'Sambert 知楚', 
+      provider: 'Alibaba', 
+      category: 'TTS' as const,
+      description: 'Chinese TTS / 中文语音合成',
+      apiEndpoint: 'https://dashscope.aliyuncs.com/api/v1',
+      apiKey: DASHSCOPE_API_KEY,
+      config: { voice: 'zhichu', format: 'mp3' } 
+    },
     
-    // Embedding Models / 向量模型
-    { modelId: 'text-embedding-v3', name: 'Text Embedding V3', provider: 'Alibaba', description: 'Latest text embedding model / 最新版文本向量模型', config: { modelType: 'EMBEDDING' } },
-    { modelId: 'text-embedding-v2', name: 'Text Embedding V2', provider: 'Alibaba', description: 'Text embedding model V2 / 文本向量模型V2', config: { modelType: 'EMBEDDING' } },
+    // ==================== Embedding Models / 向量嵌入模型 ====================
+    // Base URL for embedding models (endpoint: /embeddings)
+    // 向量模型基础URL（端点：/embeddings）
+    { 
+      modelId: 'text-embedding-v3', 
+      name: 'Text Embedding V3', 
+      provider: 'Alibaba', 
+      category: 'EMBEDDING' as const,
+      description: 'Latest text embedding model / 最新版文本向量模型',
+      apiEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      apiKey: DASHSCOPE_API_KEY,
+      config: { dimension: 1024 } 
+    },
+    { 
+      modelId: 'text-embedding-v2', 
+      name: 'Text Embedding V2', 
+      provider: 'Alibaba', 
+      category: 'EMBEDDING' as const,
+      description: 'Text embedding model V2 / 文本向量模型V2',
+      apiEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      apiKey: DASHSCOPE_API_KEY,
+      config: { dimension: 1536 } 
+    },
+    
+    // ==================== Multimodal Models / 多模态模型 ====================
+    // Multimodal uses full API path (specific API format)
+    // 多模态使用完整API路径（特定API格式）
+    { 
+      modelId: 'qwen2.5-vl-embedding', 
+      name: 'Qwen2.5 VL Embedding', 
+      provider: 'Alibaba', 
+      category: 'MULTIMODAL' as const,
+      description: 'Multimodal embedding for text and images / 文本和图像多模态向量',
+      apiEndpoint: 'https://dashscope.aliyuncs.com/api/v1/services/embeddings/multimodal-embedding',
+      apiKey: DASHSCOPE_API_KEY,
+      config: { supportedTypes: ['text', 'image'] } 
+    },
   ];
 
   for (const model of aiModels) {
     await prisma.aIModel.upsert({
       where: { modelId: model.modelId },
-      update: {},
+      // Update existing models with new category, apiEndpoint and apiKey / 更新现有模型的分类、API端点和API密钥
+      update: {
+        name: model.name,
+        provider: model.provider,
+        category: model.category,
+        description: model.description,
+        apiEndpoint: model.apiEndpoint,
+        // Update API Key if provided / 如果提供则更新API密钥
+        ...(model.apiKey && { apiKey: model.apiKey }),
+        config: model.config,
+      },
       create: {
         ...model,
         isActive: true,

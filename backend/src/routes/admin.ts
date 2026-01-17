@@ -591,24 +591,30 @@ router.delete('/users/:id', adminOnly, async (req: AuthRequest, res: Response) =
  * 获取可用AI模型（包含服务默认模型和数据库模型）
  * GET /api/admin/ai-models/available
  * 
- * Supports Aliyun Bailian model types / 支持阿里云百炼模型类型:
+ * Supports Aliyun Bailian model categories / 支持阿里云百炼模型分类:
  * - CHAT: Text chat models (文本对话模型)
  * - TTS: Text-to-Speech models (语音合成模型)
+ * - STT: Speech-to-Text models (语音转文字模型)
  * - EMBEDDING: Vector/Embedding models (向量模型)
+ * - MULTIMODAL: Multimodal models (多模态模型)
  * 
  * Query params / 查询参数:
- * - type: Optional filter by model type / 可选按模型类型筛选
+ * - category: Optional filter by model category / 可选按模型分类筛选
+ * 
+ * API Doc: https://help.aliyun.com/zh/model-studio/
  */
 router.get('/ai-models/available', trainerOrAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const { type } = req.query;
+    const { category } = req.query;
 
-    // Validate type if provided / 验证类型（如果提供）
-    const validTypes = Object.values(AIModelType);
-    if (type && !validTypes.includes(type as AIModelType)) {
+    // Valid categories / 有效的分类
+    const validCategories = ['CHAT', 'TTS', 'STT', 'EMBEDDING', 'MULTIMODAL'];
+    
+    // Validate category if provided / 验证分类（如果提供）
+    if (category && !validCategories.includes(category as string)) {
       res.status(400).json({
         success: false,
-        error: `Invalid type. Must be one of: ${validTypes.join(', ')} / 无效的类型，必须是以下之一: ${validTypes.join(', ')}`,
+        error: `Invalid category. Must be one of: ${validCategories.join(', ')} / 无效的分类，必须是以下之一: ${validCategories.join(', ')}`,
       });
       return;
     }
@@ -616,54 +622,59 @@ router.get('/ai-models/available', trainerOrAdmin, async (req: AuthRequest, res:
     // Get models from AI service / 从AI服务获取模型
     let defaultModels = aiService.getAvailableModels();
     
-    // Filter by type if specified / 如果指定则按类型筛选
-    if (type) {
-      defaultModels = aiService.getModelsByType(type as AIModelType);
+    // Filter by category if specified / 如果指定则按分类筛选
+    if (category) {
+      defaultModels = aiService.getModelsByType(category as AIModelType);
     }
 
-    // Group default models by type / 按类型分组默认模型
+    // Group default models by category / 按分类分组默认模型
     const groupedDefaultModels = {
       chat: defaultModels.filter(m => m.type === AIModelType.CHAT),
       tts: defaultModels.filter(m => m.type === AIModelType.TTS),
+      stt: defaultModels.filter(m => m.type === AIModelType.STT),
       embedding: defaultModels.filter(m => m.type === AIModelType.EMBEDDING),
     };
 
-    // Also get any custom models from database
-    // 同时从数据库获取自定义模型
+    // Get models from database, using category field directly
+    // 从数据库获取模型，直接使用category字段
+    const whereClause: Record<string, unknown> = { isActive: true };
+    if (category) {
+      whereClause.category = category;
+    }
+
     const dbModels = await prisma.aIModel.findMany({
-      where: { isActive: true },
-      orderBy: { name: 'asc' },
+      where: whereClause,
+      orderBy: [{ category: 'asc' }, { isDefault: 'desc' }, { name: 'asc' }],
     });
 
-    // Group database models by type / 按类型分组数据库模型
+    // Group database models by category field / 按category字段分组数据库模型
     const groupedDbModels = {
-      chat: dbModels.filter(m => {
-        const config = m.config as Record<string, unknown> | null;
-        return config?.modelType === AIModelType.CHAT || aiService.detectModelType(m.modelId) === AIModelType.CHAT;
-      }),
-      tts: dbModels.filter(m => {
-        const config = m.config as Record<string, unknown> | null;
-        return config?.modelType === AIModelType.TTS || aiService.detectModelType(m.modelId) === AIModelType.TTS;
-      }),
-      embedding: dbModels.filter(m => {
-        const config = m.config as Record<string, unknown> | null;
-        return config?.modelType === AIModelType.EMBEDDING || aiService.detectModelType(m.modelId) === AIModelType.EMBEDDING;
-      }),
+      chat: dbModels.filter(m => m.category === 'CHAT'),
+      tts: dbModels.filter(m => m.category === 'TTS'),
+      stt: dbModels.filter(m => m.category === 'STT'),
+      embedding: dbModels.filter(m => m.category === 'EMBEDDING'),
+      multimodal: dbModels.filter(m => m.category === 'MULTIMODAL'),
     };
+
+    // Mask API keys for security / 为安全起见遮蔽API密钥
+    const maskedDbModels = dbModels.map(m => ({
+      ...m,
+      apiKey: m.apiKey ? `${m.apiKey.substring(0, 8)}****` : null,
+    }));
 
     res.json({
       success: true,
       data: {
         // All models / 所有模型
         defaultModels,
-        customModels: dbModels,
-        // Grouped by type / 按类型分组
-        byType: {
+        customModels: maskedDbModels,
+        // Grouped by category / 按分类分组
+        byCategory: {
           default: groupedDefaultModels,
           custom: groupedDbModels,
         },
-        // Available model types / 可用模型类型
-        modelTypes: validTypes,
+        // Available model categories / 可用模型分类
+        categories: validCategories,
       },
     });
   } catch (error) {

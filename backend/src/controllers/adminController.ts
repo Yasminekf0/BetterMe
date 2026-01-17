@@ -413,16 +413,21 @@ export async function getAIModels(req: AuthRequest, res: Response): Promise<void
  * POST /api/admin/ai-models
  * 
  * Supports multiple AI providers / 支持多个AI提供商:
- * - OpenAI, Anthropic, DeepSeek, Alibaba (Qwen), etc.
+ * - OpenAI, Anthropic, DeepSeek, Alibaba (Qwen/Bailian), etc.
  * 
- * Supports model types / 支持的模型类型:
+ * Supports model categories / 支持的模型分类:
  * - CHAT: Text chat models (文本对话模型)
  * - TTS: Text-to-Speech models (语音合成模型)
+ * - STT: Speech-to-Text models (语音转文字模型)
  * - EMBEDDING: Vector/Embedding models (向量模型)
+ * - MULTIMODAL: Multimodal models (多模态模型)
+ * 
+ * Each category has different API endpoints / 每个分类有不同的API端点
+ * API Doc: https://help.aliyun.com/zh/model-studio/
  */
 export async function createAIModel(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { modelId, name, provider, description, isDefault, config, modelType, apiEndpoint, apiKey } = req.body;
+    const { modelId, name, provider, description, isDefault, config, category, apiEndpoint, apiKey } = req.body;
 
     // Validate required fields / 验证必填字段
     if (!modelId || !name || !provider) {
@@ -433,25 +438,30 @@ export async function createAIModel(req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    // Validate model type if provided / 验证模型类型（如果提供）
-    const validModelTypes = Object.values(AIModelType);
-    if (modelType && !validModelTypes.includes(modelType)) {
+    // Valid categories / 有效的分类
+    const validCategories = ['CHAT', 'TTS', 'STT', 'EMBEDDING', 'MULTIMODAL'];
+    
+    // Validate category if provided / 验证分类（如果提供）
+    if (category && !validCategories.includes(category)) {
       res.status(400).json({
         success: false,
-        error: `Invalid model type. Must be one of: ${validModelTypes.join(', ')} / 无效的模型类型，必须是以下之一: ${validModelTypes.join(', ')}`,
+        error: `Invalid category. Must be one of: ${validCategories.join(', ')} / 无效的分类，必须是以下之一: ${validCategories.join(', ')}`,
       });
       return;
     }
 
-    // Auto-detect model type from modelId if not provided
-    // 如果未提供，从modelId自动检测模型类型
-    const detectedType = modelType || aiService.detectModelType(modelId);
+    // Auto-detect category from modelId if not provided
+    // 如果未提供，从modelId自动检测分类
+    const detectedCategory = category || aiService.detectModelType(modelId);
 
-    // If setting as default, unset other defaults
-    // 如果设置为默认，取消其他默认设置
+    // If setting as default, unset other defaults in same category
+    // 如果设置为默认，取消同分类中其他默认设置
     if (isDefault) {
       await prisma.aIModel.updateMany({
-        where: { isDefault: true },
+        where: { 
+          isDefault: true,
+          category: detectedCategory,
+        },
         data: { isDefault: false },
       });
     }
@@ -461,9 +471,13 @@ export async function createAIModel(req: AuthRequest, res: Response): Promise<vo
         modelId,
         name,
         provider,
+        // Model category - determines API endpoint type / 模型分类 - 决定API端点类型
+        category: detectedCategory,
         description,
-        // API Endpoint - API接口地址 (optional, falls back to global config if not set)
-        // API接口地址（可选，未设置时使用全局配置）
+        // API Endpoint - different for each category / 每个分类不同的API端点
+        // e.g., Chat: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+        // e.g., TTS: https://dashscope.aliyuncs.com/compatible
+        // e.g., STT: wss://dashscope.aliyuncs.com/api-ws/v1/realtime
         apiEndpoint: apiEndpoint || null,
         // API Key - API密钥 (optional, falls back to global config if not set)
         // API密钥（可选，未设置时使用全局配置）
@@ -471,9 +485,6 @@ export async function createAIModel(req: AuthRequest, res: Response): Promise<vo
         isDefault: isDefault || false,
         config: {
           ...((config as object) || {}),
-          modelType: detectedType,
-          // Store endpoint type for routing / 存储端点类型用于路由
-          endpointType: aiService.getEndpointForModelType(detectedType as AIModelType),
         },
       },
     });
@@ -484,7 +495,7 @@ export async function createAIModel(req: AuthRequest, res: Response): Promise<vo
       operationType: OperationType.CREATE,
       targetType: TargetType.AI_MODEL,
       targetId: model.id,
-      description: `Created AI model / 创建AI模型: ${name} (${detectedType})`,
+      description: `Created AI model / 创建AI模型: ${name} (${detectedCategory})`,
       req,
     });
 
@@ -510,17 +521,39 @@ export async function createAIModel(req: AuthRequest, res: Response): Promise<vo
  * Update AI Model
  * 更新AI模型
  * PUT /api/admin/ai-models/:id
+ * 
+ * Supports updating category and API endpoint / 支持更新分类和API端点
  */
 export async function updateAIModel(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { id } = req.params;
-    const { name, provider, description, isDefault, isActive, config, apiEndpoint, apiKey } = req.body;
+    const { name, provider, description, isDefault, isActive, config, category, apiEndpoint, apiKey } = req.body;
 
-    // If setting as default, unset other defaults
-    // 如果设置为默认，取消其他默认设置
+    // Valid categories / 有效的分类
+    const validCategories = ['CHAT', 'TTS', 'STT', 'EMBEDDING', 'MULTIMODAL'];
+    
+    // Validate category if provided / 验证分类（如果提供）
+    if (category && !validCategories.includes(category)) {
+      res.status(400).json({
+        success: false,
+        error: `Invalid category. Must be one of: ${validCategories.join(', ')} / 无效的分类，必须是以下之一: ${validCategories.join(', ')}`,
+      });
+      return;
+    }
+
+    // Get current model to check category / 获取当前模型以检查分类
+    const currentModel = await prisma.aIModel.findUnique({ where: { id } });
+    const targetCategory = category || currentModel?.category;
+
+    // If setting as default, unset other defaults in same category
+    // 如果设置为默认，取消同分类中其他默认设置
     if (isDefault) {
       await prisma.aIModel.updateMany({
-        where: { isDefault: true, id: { not: id } },
+        where: { 
+          isDefault: true, 
+          id: { not: id },
+          category: targetCategory,
+        },
         data: { isDefault: false },
       });
     }
@@ -531,6 +564,8 @@ export async function updateAIModel(req: AuthRequest, res: Response): Promise<vo
         ...(name !== undefined && { name }),
         ...(provider !== undefined && { provider }),
         ...(description !== undefined && { description }),
+        // Update category if provided / 如果提供则更新分类
+        ...(category !== undefined && { category }),
         ...(isDefault !== undefined && { isDefault }),
         ...(isActive !== undefined && { isActive }),
         ...(config !== undefined && { config }),
@@ -547,7 +582,7 @@ export async function updateAIModel(req: AuthRequest, res: Response): Promise<vo
       operationType: OperationType.UPDATE,
       targetType: TargetType.AI_MODEL,
       targetId: id,
-      description: `Updated AI model / 更新AI模型: ${model.name}`,
+      description: `Updated AI model / 更新AI模型: ${model.name} (${model.category})`,
       req,
     });
 

@@ -21,6 +21,7 @@ export enum AIModelType {
   TTS = 'TTS',             // Text-to-Speech model / 语音合成模型
   STT = 'STT',             // Speech-to-Text model / 语音转文字模型 (Voice to Text / ASR)
   EMBEDDING = 'EMBEDDING', // Embedding/Vector model / 向量模型
+  MULTIMODAL = 'MULTIMODAL', // Multimodal embedding model / 多模态向量模型
 }
 
 // Chat message interface / 聊天消息接口
@@ -129,7 +130,9 @@ const API_ENDPOINTS = {
   // OpenAI compatible mode endpoints / OpenAI兼容模式端点
   CHAT: '/chat/completions',           // Text chat / 文本对话
   EMBEDDING: '/embeddings',            // Vector embedding / 向量嵌入
-  TTS: '/audio/speech',                // Text to speech / 文本转语音
+  // Aliyun native TTS endpoint (not OpenAI compatible) / 阿里云原生TTS端点（非OpenAI兼容）
+  // Full URL: https://dashscope.aliyuncs.com/api/v1/services/aigc/text2audio/generation
+  TTS: '/services/aigc/text2audio/generation',
   // STT uses WebSocket endpoint / STT使用WebSocket端点
   STT_WS_BASE: 'wss://dashscope.aliyuncs.com/api-ws/v1/realtime',  // Speech to text WebSocket / 语音转文字WebSocket
 };
@@ -309,6 +312,13 @@ class AIService {
       return AIModelType.TTS;
     }
     
+    // Check for Multimodal embedding models (must check before regular embedding)
+    // 检查多模态向量模型（必须在普通向量模型之前检查）
+    if ((lowerModelId.includes('vl') && lowerModelId.includes('embedding')) ||
+        lowerModelId.includes('multimodal')) {
+      return AIModelType.MULTIMODAL;
+    }
+    
     // Check for Embedding models / 检查向量模型
     if (lowerModelId.includes('embedding') || 
         lowerModelId.includes('vector')) {
@@ -451,6 +461,11 @@ class AIService {
   /**
    * Generate speech from text (TTS)
    * 从文本生成语音（TTS）
+   * 
+   * Uses Aliyun native TTS API format (not OpenAI compatible)
+   * 使用阿里云原生TTS API格式（非OpenAI兼容）
+   * API Doc: https://help.aliyun.com/zh/model-studio/text-to-audio
+   * 
    * @param text - Text to convert to speech / 要转换为语音的文本
    * @param options - TTS options including model-specific API config / TTS选项，包括模型特定API配置
    */
@@ -475,26 +490,54 @@ class AIService {
     });
 
     try {
-      const request: TTSRequest = {
+      // Aliyun native TTS API format / 阿里云原生TTS API格式
+      // Different from OpenAI format / 与OpenAI格式不同
+      const request = {
         model: ttsModel,
-        input: text,
-        voice: options?.voice || 'alloy',
-        response_format: options?.format || 'mp3',
-        speed: options?.speed || 1.0,
+        input: {
+          text: text,
+        },
+        parameters: {
+          voice: options?.voice || 'longxiaochun',  // Default Aliyun voice / 默认阿里云音色
+          format: options?.format || 'mp3',
+          sample_rate: 22050,
+          speech_rate: options?.speed || 1.0,
+        },
       };
 
-      // Use OpenAI compatible endpoint for TTS
-      // 使用OpenAI兼容端点进行语音合成
+      // Use Aliyun native TTS endpoint / 使用阿里云原生TTS端点
+      // Endpoint: /services/aigc/text2audio/generation
       const response = await client.post(
         API_ENDPOINTS.TTS,
         request,
-        { responseType: 'arraybuffer' }
+        { 
+          headers: {
+            'X-DashScope-Async': 'disable',  // Sync mode / 同步模式
+          },
+        }
       );
 
-      return Buffer.from(response.data);
+      // Aliyun returns JSON with audio URL, need to fetch the audio
+      // 阿里云返回JSON包含音频URL，需要获取音频
+      const audioUrl = response.data?.output?.audio_url || response.data?.output?.audio;
+      if (audioUrl) {
+        // Fetch audio from URL / 从URL获取音频
+        const audioResponse = await axios.get(audioUrl, { responseType: 'arraybuffer' });
+        return Buffer.from(audioResponse.data);
+      }
+
+      // If direct audio data returned / 如果直接返回音频数据
+      if (response.data instanceof Buffer || response.data instanceof ArrayBuffer) {
+        return Buffer.from(response.data);
+      }
+
+      throw new Error('No audio data in TTS response / TTS响应中没有音频数据');
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const message = error.response?.data?.error?.message || error.message;
+        const errorData = error.response?.data;
+        const message = typeof errorData === 'object' 
+          ? (errorData?.message || errorData?.error?.message || error.message)
+          : error.message;
         logger.error('AI TTS Failed / AI语音合成失败', { error: message, model: ttsModel });
         throw new Error(`AI TTS error / AI语音合成错误: ${message}`);
       }
@@ -983,6 +1026,160 @@ Respond ONLY with valid JSON, no additional text.`;
   }
 
   /**
+   * Test TTS model connection
+   * 测试TTS模型连接
+   * Uses Aliyun Qwen-TTS API (multimodal-generation)
+   * 使用阿里云Qwen-TTS API (multimodal-generation)
+   * API Doc: https://help.aliyun.com/zh/model-studio/qwen-tts-api
+   */
+  private async testTTSConnection(
+    modelId: string,
+    apiConfig?: ModelAPIConfig
+  ): Promise<{ success: boolean; responseTime: number; message: string; error?: string }> {
+    const startTime = Date.now();
+    const apiKey = apiConfig?.apiKey || config.ai.apiKey;
+    // Use model-specific endpoint or default Qwen-TTS endpoint
+    // 使用模型特定端点或默认Qwen-TTS端点
+    const endpoint = apiConfig?.apiEndpoint || 
+      'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
+
+    try {
+      // Qwen-TTS API format / Qwen-TTS API格式
+      // https://help.aliyun.com/zh/model-studio/qwen-tts-api
+      const response = await axios.post(
+        endpoint,
+        {
+          model: modelId,
+          input: {
+            text: '你好',
+            voice: 'Cherry',
+            language_type: 'Chinese',
+          },
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: config.ai.timeout,
+        }
+      );
+
+      const responseTime = Date.now() - startTime;
+      const data = response.data;
+      const hasAudio = data?.output?.audio?.url || data?.output?.audio?.data;
+
+      return {
+        success: !!hasAudio,
+        responseTime,
+        message: hasAudio
+          ? 'TTS model connection successful / TTS模型连接成功'
+          : 'Model responded but no audio returned / 模型响应但未返回音频',
+      };
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Extract more specific error from axios response / 从axios响应中提取更具体的错误
+      if (axios.isAxiosError(error) && error.response?.data) {
+        const data = error.response.data;
+        const specificError = typeof data === 'object' 
+          ? (data.message || data.error?.message || JSON.stringify(data).substring(0, 100))
+          : String(data).substring(0, 100);
+        return {
+          success: false,
+          responseTime,
+          message: 'TTS model connection failed / TTS模型连接失败',
+          error: specificError,
+        };
+      }
+
+      return {
+        success: false,
+        responseTime,
+        message: 'TTS model connection failed / TTS模型连接失败',
+        error: errorMessage,
+      };
+    }
+  }
+
+  /**
+   * Test Multimodal embedding model connection
+   * 测试多模态向量模型连接
+   * Uses Aliyun native multimodal embedding API
+   * 使用阿里云原生多模态向量API
+   */
+  private async testMultimodalEmbedding(
+    modelId: string,
+    apiConfig?: ModelAPIConfig
+  ): Promise<{ success: boolean; responseTime: number; message: string; error?: string }> {
+    const startTime = Date.now();
+    const apiKey = apiConfig?.apiKey || config.ai.apiKey;
+    // Use the full endpoint from config, it should be the complete URL
+    // 使用配置中的完整端点，它应该是完整的URL
+    const endpoint = apiConfig?.apiEndpoint || 'https://dashscope.aliyuncs.com/api/v1/services/embeddings/multimodal-embedding/multimodal-embedding';
+
+    try {
+      // Aliyun multimodal embedding API format / 阿里云多模态向量API格式
+      const response = await axios.post(
+        endpoint,
+        {
+          model: modelId,
+          input: {
+            contents: [
+              {
+                text: 'Hello world',
+              },
+            ],
+          },
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: config.ai.timeout,
+        }
+      );
+
+      const responseTime = Date.now() - startTime;
+      const data = response.data;
+      const dimensions = data?.output?.embeddings?.[0]?.embedding?.length || 0;
+
+      return {
+        success: dimensions > 0,
+        responseTime,
+        message: dimensions > 0
+          ? `Multimodal embedding successful (dim: ${dimensions}) / 多模态向量成功 (维度: ${dimensions})`
+          : 'Model responded but no embedding returned / 模型响应但未返回向量',
+      };
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      
+      if (axios.isAxiosError(error) && error.response?.data) {
+        const data = error.response.data;
+        const specificError = typeof data === 'object'
+          ? (data.message || data.error?.message || JSON.stringify(data).substring(0, 100))
+          : String(data).substring(0, 100);
+        return {
+          success: false,
+          responseTime,
+          message: 'Multimodal embedding connection failed / 多模态向量连接失败',
+          error: specificError,
+        };
+      }
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        success: false,
+        responseTime,
+        message: 'Multimodal embedding connection failed / 多模态向量连接失败',
+        error: errorMessage,
+      };
+    }
+  }
+
+  /**
    * Test specific AI model connection
    * 测试特定AI模型连接
    * @param modelId - The model ID to test / 要测试的模型ID
@@ -1045,21 +1242,18 @@ Respond ONLY with valid JSON, no additional text.`;
 
         case AIModelType.TTS: {
           // Test TTS model with model-specific config / 使用模型特定配置测试TTS模型
-          const audio = await this.textToSpeech('Test', { 
-            model: modelId,
-            apiEndpoint: apiConfig?.apiEndpoint,
-            apiKey: apiConfig?.apiKey,
-          });
-          const endTime = Date.now();
-          const responseTime = endTime - startTime;
-          const isValid = audio && audio.length > 0;
-          return {
-            success: isValid,
-            responseTime,
-            message: isValid 
-              ? 'TTS model connection successful / TTS模型连接成功' 
-              : 'Model responded but no audio returned / 模型响应但未返回音频',
-          };
+          // For OpenAI compatible endpoint, use /audio/speech format
+          // 对于OpenAI兼容端点，使用 /audio/speech 格式
+          const ttsResult = await this.testTTSConnection(modelId, apiConfig);
+          return ttsResult;
+        }
+
+        case AIModelType.MULTIMODAL: {
+          // Test multimodal embedding model / 测试多模态向量模型
+          // Multimodal embedding uses Aliyun native API, not OpenAI compatible
+          // 多模态向量使用阿里云原生API，非OpenAI兼容
+          const multimodalResult = await this.testMultimodalEmbedding(modelId, apiConfig);
+          return multimodalResult;
         }
 
         case AIModelType.STT: {

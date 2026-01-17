@@ -216,24 +216,42 @@ model FollowUpEmail {
   @@map("follow_up_emails")
 }
 
+// AI Model Category Enum - AI模型分类枚举
+// Different categories have different API endpoints / 不同分类有不同的API端点
+enum AIModelCategory {
+  CHAT          // Text chat/conversation models / 文本对话模型
+  TTS           // Text-to-Speech models / 语音合成模型
+  STT           // Speech-to-Text models (ASR) / 语音转文字模型
+  EMBEDDING     // Vector/Embedding models / 向量嵌入模型
+  MULTIMODAL    // Multimodal models (vision, etc.) / 多模态模型
+}
+
 // AI Model Configuration
-// AI模型配置 - 支持多个AI提供商
+// AI模型配置 - 支持多个AI提供商（阿里云百炼等）
+// API Doc: https://help.aliyun.com/zh/model-studio/
 model AIModel {
-  id          String   @id @default(uuid())
-  modelId     String   @unique
+  id          String           @id @default(uuid())
+  modelId     String           @unique
   name        String
   provider    String
+  // Model category - determines API endpoint type / 模型分类 - 决定API端点类型
+  category    AIModelCategory  @default(CHAT)
   description String?
-  // API Endpoint - API接口地址 (e.g., https://api.openai.com/v1)
+  // API Endpoint - API接口地址 (different for each category / 每个分类不同)
+  // e.g., Chat: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+  // e.g., TTS: https://dashscope.aliyuncs.com/compatible
+  // e.g., Embedding: https://dashscope.aliyuncs.com/compatible-mode/v1
+  // e.g., STT: wss://dashscope.aliyuncs.com/api-ws/v1/realtime
   apiEndpoint String?
   // API Key - API密钥 (encrypted storage recommended / 建议加密存储)
-  apiKey      String?  @db.Text
-  isDefault   Boolean  @default(false)
-  isActive    Boolean  @default(true)
-  config      Json?    // Additional configuration / 附加配置
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  apiKey      String?          @db.Text
+  isDefault   Boolean          @default(false)
+  isActive    Boolean          @default(true)
+  config      Json?            // Additional configuration / 附加配置
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
+  @@index([category])
   @@map("ai_models")
 }
 
