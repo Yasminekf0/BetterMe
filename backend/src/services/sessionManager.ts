@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { prisma } from "../lib/prisma";
 import { logger } from "../utils/logger";
 import { aiService } from "./aiService";
+import { aliyunSTTService } from "./aliyunSTTService";
 
 /**
  * Audio Configuration
@@ -253,16 +254,13 @@ class SessionManager {
         audioSize: audioData.length,
       });
 
-      const result = {
-        text: "Simulated transcription text",
-        confidence: 0.95,
-      };
-      // const result = await aliyunSTTService.transcribe(audioData, {
-      //   language: 'zh-CN',
-      //   punctuation: true,
-      //   modelName: 'general',
-      // });
+      const result = await aliyunSTTService.transcribe(audioData, {
+        language: 'en-US',
+        punctuation: true,
+        modelName: 'English',
+      });
 
+     
       logger.info("Aliyun STT response received", {
         sessionId,
         text: result.text,

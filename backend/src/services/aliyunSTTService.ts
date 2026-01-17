@@ -1,5 +1,5 @@
-import { logger } from '../utils/logger';
-import axios from 'axios';
+import { logger } from "../utils/logger";
+import axios from "axios";
 
 /**
  * Aliyun Speech-to-Text Service
@@ -34,142 +34,90 @@ class AliyunSTTService {
   private accessKeySecret: string;
   private regionId: string;
   private ossBucket: string;
-  private endpoint: string;
+  private sttEndpoint: string;
 
   constructor() {
-    this.accessKeyId = process.env.ALIYUN_ACCESS_KEY_ID || '';
-    this.accessKeySecret = process.env.ALIYUN_ACCESS_KEY_SECRET || '';
-    this.regionId = process.env.ALIYUN_REGION_ID || 'cn-hangzhou';
-    this.ossBucket = process.env.ALIYUN_OSS_BUCKET || '';
+    this.accessKeyId = process.env.ALIYUN_ACCESS_KEY_ID || "";
+    this.accessKeySecret = process.env.ALIYUN_ACCESS_KEY_SECRET || "";
+    this.regionId = process.env.ALIYUN_REGION_ID || "cn-hangzhou";
+    this.ossBucket = process.env.ALIYUN_OSS_BUCKET || "";
+
+    this.sttEndpoint = "http://nlsapi.cn-shanghai.aliyuncs.com/asr/recognize";
 
     // Aliyun Speech API endpoint
-    this.endpoint = `https://nls-gateway-${this.regionId}.aliyuncs.com/rest/api/v1`;
 
     if (!this.accessKeyId || !this.accessKeySecret) {
-      logger.warn('Aliyun STT credentials not configured', {
+      logger.warn("Aliyun STT credentials not configured", {
         hasAccessKeyId: !!this.accessKeyId,
         hasAccessKeySecret: !!this.accessKeySecret,
       });
     }
   }
-
-  /**
-   * Get authentication token from Aliyun
-   * Token expires after 1 hour
-   */
-  private async getAuthToken(): Promise<string> {
-    try {
-      const response = await axios.post(
-        `${this.endpoint}/token`,
-        {
-          AccessKeyId: this.accessKeyId,
-          AccessKeySecret: this.accessKeySecret,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (response.data.Token) {
-        logger.debug('Aliyun auth token obtained');
-        return response.data.Token;
-      }
-
-      throw new Error('No token in response');
-    } catch (error) {
-      logger.error('Failed to get Aliyun auth token', { error });
-      throw error;
-    }
-  }
-
-  /**
-   * Upload audio to Aliyun OSS for processing
-   * Returns the OSS file URL for transcription
-   */
-  private async uploadAudioToOSS(
-    audioData: Buffer,
-    fileName: string
-  ): Promise<string> {
-    try {
-      // TODO: Implement OSS upload using @alicloud/oss-sdk-js
-      // This is a placeholder for the actual implementation
-
-      logger.info('Uploading audio to Aliyun OSS', {
-        fileName,
-      });
-
-      // Example: OSS URL would be like:
-      // https://your-bucket.oss-cn-hangzhou.aliyuncs.com/audio/session-id-timestamp.wav
-      const ossUrl = `https://${this.ossBucket}.oss-${this.regionId}.aliyuncs.com/audio/${fileName}`;
-
-      return ossUrl;
-    } catch (error) {
-      logger.error('Failed to upload audio to OSS', { error });
-      throw error;
-    }
-  }
-
+ 
   /**
    * Transcribe audio using Aliyun Speech-to-Text API
    */
   async transcribe(
     audioData: Buffer,
-    options: TranscribeOptions = {}
+    options: TranscribeOptions = {},
   ): Promise<TranscribeResult> {
     try {
       const {
-        language = 'zh-CN',
+        language = "en-US",
         punctuation = true,
-        modelName = 'general',
+        modelName = "English", // Match your BetterMe project model
       } = options;
 
-      logger.info('Starting Aliyun STT transcription', {
+      logger.info("Starting Aliyun STT transcription", {
         audioSize: audioData.length,
         language,
         modelName,
       });
 
-      // Get authentication token
-      const token = await this.getAuthToken();
+      // ❌ DELETE THESE TWO LINES (causing the error)
+      // const token = await this.getAuthToken();
+      // const audioUrl = await this.uploadAudioToOSS(audioData, fileName);
 
-      // Upload audio to OSS
-      const timestamp = Date.now();
-      const fileName = `audio-${timestamp}.wav`;
-      const audioUrl = await this.uploadAudioToOSS(audioData, fileName);
-
-      // Call Aliyun Speech Recognition API
+      // ✅ Direct API call (no token/OSS)
       const response = await axios.post(
-        `${this.endpoint}/recognize`,
+        this.sttEndpoint,
+        audioData, // Raw PCM audio buffer
         {
-          TaskName: `task-${timestamp}`,
-          ModelName: modelName,
-          SourceLanguage: language,
-          AudioUrl: audioUrl,
-          Output: 'json',
-          PunctuationPrediction: punctuation,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+          params: {
+            access_key_id: this.accessKeyId,
+            access_key_secret: this.accessKeySecret,
+            format: "pcm",
+            sample_rate: 16000,
+            language: language,
+            model: modelName,
+            enable_punctuation_prediction: punctuation ? "true" : "false",
           },
-          timeout: 60000,
-        }
+          headers: {
+            "Content-Type": "application/octet-stream", // Critical for PCM
+            Accept: "application/json",
+          },
+          timeout: 10000,
+        },
       );
 
-      if (!response.data || response.data.Status !== 3) {
-        throw new Error(`Transcription failed with status: ${response.data?.Status}`);
+      // ✅ Fix response parsing (match Aliyun's actual response format)
+      const data = response.data;
+      if (data.status !== 200 || !data.result) {
+        throw new Error(
+          `Transcription failed: ${data.message || "No result returned"}`,
+        );
       }
 
+      // Calculate duration (bytes / (16000 Hz * 2 bytes per sample))
+      const durationMs = Math.round((audioData.length / (16000 * 2)) * 1000);
+
       const result: TranscribeResult = {
-        text: response.data.Result || '',
-        confidence: response.data.Confidence || 0,
-        duration: response.data.Duration || 0,
+        text: data.result,
+        confidence: data.confidence || 1.0,
+        duration: durationMs,
       };
 
-      logger.info('Transcription completed', {
+      logger.info("Transcription completed", {
         text: result.text,
         confidence: result.confidence,
         duration: result.duration,
@@ -177,64 +125,7 @@ class AliyunSTTService {
 
       return result;
     } catch (error) {
-      logger.error('Aliyun STT transcription failed', { error });
-      throw error;
-    }
-  }
-
-  /**
-   * Transcribe audio file from OSS
-   */
-  async transcribeFromOSS(
-    ossUrl: string,
-    options: TranscribeOptions = {}
-  ): Promise<TranscribeResult> {
-    try {
-      const { language = 'zh-CN', punctuation = true, modelName = 'general' } =
-        options;
-
-      logger.info('Starting transcription from OSS', {
-        ossUrl,
-        language,
-        modelName,
-      });
-
-      // Get authentication token
-      const token = await this.getAuthToken();
-
-      // Call Aliyun Speech Recognition API
-      const response = await axios.post(
-        `${this.endpoint}/recognize`,
-        {
-          TaskName: `task-${Date.now()}`,
-          ModelName: modelName,
-          SourceLanguage: language,
-          AudioUrl: ossUrl,
-          Output: 'json',
-          PunctuationPrediction: punctuation,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          timeout: 60000,
-        }
-      );
-
-      if (!response.data || response.data.Status !== 3) {
-        throw new Error(`Transcription failed with status: ${response.data?.Status}`);
-      }
-
-      const result: TranscribeResult = {
-        text: response.data.Result || '',
-        confidence: response.data.Confidence || 0,
-        duration: response.data.Duration || 0,
-      };
-
-      return result;
-    } catch (error) {
-      logger.error('OSS transcription failed', { error });
+      logger.error("Aliyun STT transcription failed", { error });
       throw error;
     }
   }
@@ -243,19 +134,23 @@ class AliyunSTTService {
    * Get recognized words with confidence scores
    */
   async getDetailedRecognition(
-    audioData: Buffer
+    audioData: Buffer,
   ): Promise<Array<{ word: string; confidence: number }>> {
     try {
-      const result = await this.transcribe(audioData);
+      const result = await this.transcribe(audioData, {
+        language: "en-US",
+        punctuation: true,
+        modelName: "English",
+      });
 
       // TODO: Parse detailed recognition results from Aliyun response
       // This is a simplified placeholder
 
-      logger.info('Retrieved detailed recognition results');
+      logger.info("Retrieved detailed recognition results");
 
       return [];
     } catch (error) {
-      logger.error('Failed to get detailed recognition', { error });
+      logger.error("Failed to get detailed recognition", { error });
       throw error;
     }
   }
