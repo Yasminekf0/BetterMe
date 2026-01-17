@@ -15,13 +15,20 @@ import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
 import { logger } from '../utils/logger';
+import { PrismaClient } from '@prisma/client';
+
+// Prisma client instance / Prisma客户端实例
+const prisma = new PrismaClient();
 
 // ==================== Configuration / 配置 ====================
 
-const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY!;
-const DASHVECTOR_API_KEY = process.env.DASHVECTOR_API_KEY!;
+const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY;
+const DASHVECTOR_API_KEY = process.env.DASHVECTOR_API_KEY;
 const DASHVECTOR_CLUSTER_ENDPOINT = process.env.DASHVECTOR_ENDPOINT;
 const COLLECTION_NAME = process.env.RAG_COLLECTION_NAME || 'bettermeCollection';
+
+// Check if DashVector is configured / 检查DashVector是否已配置
+const USE_DASHVECTOR = !!(DASHVECTOR_API_KEY && DASHVECTOR_CLUSTER_ENDPOINT);
 
 // Default chunk settings / 默认切块设置
 const DEFAULT_CHUNK_SIZE = 500;      // Characters per chunk / 每个块的字符数
@@ -358,16 +365,35 @@ export class RAGService {
   }
 
   /**
-   * Insert vector into DashVector collection
-   * 将向量插入DashVector集合
+   * Insert vector into DashVector collection or local database
+   * 将向量插入DashVector集合或本地数据库
    * 
-   * @param id - Document ID / 文档ID
+   * @param id - Chunk ID / 块ID
    * @param text - Original text / 原始文本
    * @param vector - Embedding vector / 嵌入向量
    * @param metadata - Additional metadata / 附加元数据
    * @returns Insert result / 插入结果
    */
-  async insertIntoDashVector(
+  async insertVector(
+    id: string,
+    text: string,
+    vector: number[],
+    metadata: Record<string, any> = {}
+  ): Promise<any> {
+    // If DashVector is configured, use it / 如果配置了DashVector则使用它
+    if (USE_DASHVECTOR) {
+      return await this.insertIntoDashVector(id, text, vector, metadata);
+    } else {
+      // Otherwise, store in local database / 否则存储在本地数据库
+      return await this.insertIntoLocalDB(id, text, vector, metadata);
+    }
+  }
+
+  /**
+   * Insert vector into DashVector collection
+   * 将向量插入DashVector集合
+   */
+  private async insertIntoDashVector(
     id: string,
     text: string,
     vector: number[],
@@ -405,6 +431,56 @@ export class RAGService {
       } else {
         throw new Error(`Network error while inserting into DashVector / 插入DashVector时网络错误: ${error.message}`);
       }
+    }
+  }
+
+  /**
+   * Insert vector into local database (fallback when DashVector is not configured)
+   * 将向量插入本地数据库（DashVector未配置时的备选方案）
+   */
+  private async insertIntoLocalDB(
+    id: string,
+    text: string,
+    vector: number[],
+    metadata: Record<string, any> = {}
+  ): Promise<any> {
+    try {
+      // Parse chunk ID to get documentId and chunkIndex
+      // 解析块ID以获取文档ID和块索引
+      const parts = id.split('_chunk_');
+      const documentId = parts[0];
+      const chunkIndex = parseInt(parts[1] || '0', 10);
+
+      // Upsert the chunk into local database
+      // 将块插入或更新到本地数据库
+      const chunk = await prisma.rAGChunk.upsert({
+        where: {
+          documentId_chunkIndex: {
+            documentId,
+            chunkIndex,
+          },
+        },
+        update: {
+          text,
+          embedding: vector,
+          metadata,
+        },
+        create: {
+          id,
+          documentId,
+          chunkIndex,
+          text,
+          embedding: vector,
+          startOffset: metadata.startOffset || 0,
+          endOffset: metadata.endOffset || text.length,
+          metadata,
+        },
+      });
+
+      logger.info(`Vector stored in local DB / 向量已存储到本地数据库`, { chunkId: id });
+      return { success: true, chunk };
+    } catch (error: any) {
+      throw new Error(`Local DB insert error / 本地数据库插入错误: ${error.message}`);
     }
   }
 
@@ -452,13 +528,16 @@ export class RAGService {
       let failedCount = 0;
       const errors: string[] = [];
 
+      // Log storage mode / 记录存储模式
+      logger.info(`Using ${USE_DASHVECTOR ? 'DashVector' : 'Local DB'} for vector storage / 使用${USE_DASHVECTOR ? 'DashVector' : '本地数据库'}存储向量`);
+
       for (const chunk of chunks) {
         try {
           // Generate embedding / 生成嵌入向量
           const embedding = await this.getEmbedding(chunk.text);
           
-          // Insert into DashVector / 插入DashVector
-          await this.insertIntoDashVector(
+          // Insert vector (DashVector or local DB) / 插入向量（DashVector或本地数据库）
+          await this.insertVector(
             chunk.id,
             chunk.text,
             embedding,
@@ -468,6 +547,8 @@ export class RAGService {
               chunkIndex: chunk.metadata.chunkIndex,
               totalChunks: chunk.metadata.totalChunks,
               fileType: chunk.metadata.fileType,
+              startOffset: chunk.metadata.startOffset,
+              endOffset: chunk.metadata.endOffset,
             }
           );
           
@@ -507,14 +588,26 @@ export class RAGService {
   }
 
   /**
-   * Query similar documents from DashVector
-   * 从DashVector查询相似文档
+   * Query similar documents
+   * 查询相似文档
    * 
    * @param query - Query text / 查询文本
    * @param topK - Number of results to return / 返回结果数量
    * @returns Similar documents / 相似文档
    */
   async querySimilarDocuments(query: string, topK: number = 5): Promise<any[]> {
+    if (USE_DASHVECTOR) {
+      return await this.queryFromDashVector(query, topK);
+    } else {
+      return await this.queryFromLocalDB(query, topK);
+    }
+  }
+
+  /**
+   * Query similar documents from DashVector
+   * 从DashVector查询相似文档
+   */
+  private async queryFromDashVector(query: string, topK: number = 5): Promise<any[]> {
     try {
       // Generate embedding for query / 为查询生成嵌入向量
       const queryEmbedding = await this.getEmbedding(query);
@@ -539,22 +632,107 @@ export class RAGService {
 
       return response.data?.output || [];
     } catch (error: any) {
-      logger.error(`Query similar documents failed / 查询相似文档失败`, { error: error.message });
+      logger.error(`Query DashVector failed / 查询DashVector失败`, { error: error.message });
       throw error;
+    }
+  }
+
+  /**
+   * Query similar documents from local database using cosine similarity
+   * 使用余弦相似度从本地数据库查询相似文档
+   */
+  private async queryFromLocalDB(query: string, topK: number = 5): Promise<any[]> {
+    try {
+      // Generate embedding for query / 为查询生成嵌入向量
+      const queryEmbedding = await this.getEmbedding(query);
+      
+      // Get all chunks with embeddings from database
+      // 从数据库获取所有有嵌入向量的块
+      const chunks = await prisma.rAGChunk.findMany({
+        where: {
+          embedding: { not: null },
+        },
+        include: {
+          document: {
+            select: {
+              name: true,
+              originalName: true,
+              fileType: true,
+            },
+          },
+        },
+      });
+
+      // Calculate cosine similarity for each chunk
+      // 为每个块计算余弦相似度
+      const results = chunks.map((chunk) => {
+        const embedding = chunk.embedding as number[];
+        const similarity = this.cosineSimilarity(queryEmbedding, embedding);
+        return {
+          id: chunk.id,
+          score: similarity,
+          text: chunk.text,
+          documentId: chunk.documentId,
+          documentName: chunk.document?.name,
+          chunkIndex: chunk.chunkIndex,
+          fileType: chunk.document?.fileType,
+        };
+      });
+
+      // Sort by similarity and return top K
+      // 按相似度排序并返回前K个
+      results.sort((a, b) => b.score - a.score);
+      return results.slice(0, topK);
+    } catch (error: any) {
+      logger.error(`Query local DB failed / 查询本地数据库失败`, { error: error.message });
+      throw error;
+    }
+  }
+
+  /**
+   * Calculate cosine similarity between two vectors
+   * 计算两个向量之间的余弦相似度
+   */
+  private cosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length) return 0;
+    
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    
+    const magnitude = Math.sqrt(normA) * Math.sqrt(normB);
+    if (magnitude === 0) return 0;
+    
+    return dotProduct / magnitude;
+  }
+
+  /**
+   * Delete document vectors
+   * 删除文档向量
+   * 
+   * @param documentId - Document ID to delete / 要删除的文档ID
+   * @returns Delete result / 删除结果
+   */
+  async deleteDocumentVectors(documentId: string): Promise<any> {
+    if (USE_DASHVECTOR) {
+      return await this.deleteFromDashVector(documentId);
+    } else {
+      return await this.deleteFromLocalDB(documentId);
     }
   }
 
   /**
    * Delete document vectors from DashVector
    * 从DashVector删除文档向量
-   * 
-   * @param documentId - Document ID to delete / 要删除的文档ID
-   * @returns Delete result / 删除结果
    */
-  async deleteDocumentVectors(documentId: string): Promise<any> {
+  private async deleteFromDashVector(documentId: string): Promise<any> {
     try {
-      // First, we need to find all chunk IDs for this document / 首先需要找到该文档的所有块ID
-      // DashVector supports delete by filter / DashVector支持按过滤条件删除
       const url = `${DASHVECTOR_CLUSTER_ENDPOINT}/v1/collections/${COLLECTION_NAME}/docs`;
       
       const response = await axios.delete(
@@ -570,10 +748,34 @@ export class RAGService {
         }
       );
 
-      logger.info(`Document vectors deleted / 文档向量已删除`, { documentId });
+      logger.info(`Document vectors deleted from DashVector / 文档向量已从DashVector删除`, { documentId });
       return response.data;
     } catch (error: any) {
-      logger.error(`Delete document vectors failed / 删除文档向量失败`, { 
+      logger.error(`Delete from DashVector failed / 从DashVector删除失败`, { 
+        documentId, 
+        error: error.message 
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Delete document vectors from local database
+   * 从本地数据库删除文档向量
+   */
+  private async deleteFromLocalDB(documentId: string): Promise<any> {
+    try {
+      const result = await prisma.rAGChunk.deleteMany({
+        where: { documentId },
+      });
+
+      logger.info(`Document vectors deleted from local DB / 文档向量已从本地数据库删除`, { 
+        documentId, 
+        deletedCount: result.count 
+      });
+      return { success: true, deletedCount: result.count };
+    } catch (error: any) {
+      logger.error(`Delete from local DB failed / 从本地数据库删除失败`, { 
         documentId, 
         error: error.message 
       });

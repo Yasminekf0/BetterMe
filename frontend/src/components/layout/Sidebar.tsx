@@ -16,6 +16,7 @@ import {
   ChevronRight,
   UserCircle,
   Package,
+  Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -36,12 +37,13 @@ const userNavItems = [
 ];
 
 // Admin navigation items - Only keep core features / 管理员导航菜单 - 只保留核心功能
-// Overview, Scenarios, Personas, Products, Users, Statistics
+// Overview, Scenarios, Personas, Products, Users, Statistics, RAG
 const adminNavItems = [
   { href: ROUTES.ADMIN, label: 'Overview', icon: LayoutDashboard },
   { href: ROUTES.ADMIN_SCENARIOS, label: 'Scenarios', icon: FileText },
   { href: ROUTES.ADMIN_PERSONAS, label: 'Personas', icon: UserCircle },
   { href: '/admin/products', label: 'Products', icon: Package },
+  { href: '/admin/rag', label: 'RAG Documents', icon: Database },
   { href: ROUTES.ADMIN_USERS, label: 'Users', icon: Users },
   { href: ROUTES.ADMIN_STATISTICS, label: 'Statistics', icon: BarChart3 },
 ];

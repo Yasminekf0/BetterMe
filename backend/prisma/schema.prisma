@@ -807,9 +807,31 @@ model RAGDocument {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
+  // Relations / 关联
+  chunks          RAGChunk[]
+
   @@index([status])
   @@index([fileType])
   @@index([uploadedById])
   @@map("rag_documents")
+}
+
+// RAG Chunk - 文档向量块（本地存储）
+// Used when DashVector is not configured / 当DashVector未配置时使用
+model RAGChunk {
+  id              String            @id @default(uuid())
+  documentId      String            // Parent document ID / 父文档ID
+  document        RAGDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunkIndex      Int               // Chunk sequence number / 块序号
+  text            String            @db.Text          // Chunk text content / 块文本内容
+  embedding       Json?             // Vector embedding (stored as JSON array) / 向量嵌入（存储为JSON数组）
+  startOffset     Int               // Start position in original text / 原文本起始位置
+  endOffset       Int               // End position in original text / 原文本结束位置
+  metadata        Json?             // Additional metadata / 附加元数据
+  createdAt       DateTime          @default(now())
+
+  @@unique([documentId, chunkIndex])
+  @@index([documentId])
+  @@map("rag_chunks")
 }
 

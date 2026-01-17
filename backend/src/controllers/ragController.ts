@@ -351,16 +351,30 @@ export async function getRAGDocuments(req: AuthRequest, res: Response): Promise<
 }
 
 /**
- * Get RAG Document by ID
- * 根据ID获取RAG文档
+ * Get RAG Document by ID with optional chunks
+ * 根据ID获取RAG文档（可选包含块）
  * GET /api/admin/rag/documents/:id
  */
 export async function getRAGDocument(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { id } = req.params;
+    const { includeChunks = 'false' } = req.query;
 
     const document = await prisma.rAGDocument.findUnique({
       where: { id },
+      include: includeChunks === 'true' ? {
+        chunks: {
+          orderBy: { chunkIndex: 'asc' },
+          select: {
+            id: true,
+            chunkIndex: true,
+            text: true,
+            startOffset: true,
+            endOffset: true,
+            createdAt: true,
+          },
+        },
+      } : undefined,
     });
 
     if (!document) {
@@ -380,6 +394,92 @@ export async function getRAGDocument(req: AuthRequest, res: Response): Promise<v
     res.status(500).json({
       success: false,
       error: 'Failed to get document / 获取文档失败',
+    });
+  }
+}
+
+/**
+ * Get RAG Document Chunks
+ * 获取RAG文档的所有块
+ * GET /api/admin/rag/documents/:id/chunks
+ */
+export async function getRAGDocumentChunks(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { page = '1', pageSize = '20' } = req.query;
+
+    const pageNum = parseInt(page as string, 10);
+    const pageSizeNum = parseInt(pageSize as string, 10);
+    const skip = (pageNum - 1) * pageSizeNum;
+
+    // Check if document exists / 检查文档是否存在
+    const document = await prisma.rAGDocument.findUnique({
+      where: { id },
+      select: { id: true, name: true, chunkCount: true },
+    });
+
+    if (!document) {
+      res.status(404).json({
+        success: false,
+        error: 'Document not found / 文档未找到',
+      });
+      return;
+    }
+
+    // Get chunks with pagination / 分页获取块
+    const [chunks, total] = await Promise.all([
+      prisma.rAGChunk.findMany({
+        where: { documentId: id },
+        orderBy: { chunkIndex: 'asc' },
+        skip,
+        take: pageSizeNum,
+        select: {
+          id: true,
+          chunkIndex: true,
+          text: true,
+          startOffset: true,
+          endOffset: true,
+          metadata: true,
+          createdAt: true,
+        },
+      }),
+      prisma.rAGChunk.count({ where: { documentId: id } }),
+    ]);
+
+    // Check if chunks have embeddings / 检查块是否有嵌入向量
+    const chunksWithEmbeddingFlag = await Promise.all(
+      chunks.map(async (chunk) => {
+        const fullChunk = await prisma.rAGChunk.findUnique({
+          where: { id: chunk.id },
+          select: { embedding: true },
+        });
+        return {
+          ...chunk,
+          hasEmbedding: fullChunk?.embedding !== null,
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: {
+        document: {
+          id: document.id,
+          name: document.name,
+          chunkCount: document.chunkCount,
+        },
+        chunks: chunksWithEmbeddingFlag,
+        total,
+        page: pageNum,
+        pageSize: pageSizeNum,
+        totalPages: Math.ceil(total / pageSizeNum),
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get RAG document chunks error / 获取RAG文档块错误', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get document chunks / 获取文档块失败',
     });
   }
 }

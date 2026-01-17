@@ -13,6 +13,7 @@ import {
   uploadRAGDocument,
   getRAGDocuments,
   getRAGDocument,
+  getRAGDocumentChunks,
   updateRAGDocument,
   deleteRAGDocument,
   reprocessRAGDocument,
@@ -148,6 +149,40 @@ router.get('/documents', trainerOrAdmin, getRAGDocuments);
  *         description: Document not found
  */
 router.get('/documents/:id', trainerOrAdmin, getRAGDocument);
+
+/**
+ * @swagger
+ * /api/admin/rag/documents/{id}/chunks:
+ *   get:
+ *     summary: Get RAG Document Chunks
+ *     description: Get all chunks of a specific RAG document
+ *     tags: [RAG]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Document ID
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Page number
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: Chunks retrieved successfully
+ *       404:
+ *         description: Document not found
+ */
+router.get('/documents/:id/chunks', trainerOrAdmin, getRAGDocumentChunks);
 
 /**
  * @swagger
