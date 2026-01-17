@@ -12,7 +12,7 @@ async function run() {
     {
       model: "text-embedding-v2",
       input: {
-        texts: ["hello world"]
+        texts: ["i love tech"]
       }
     },
     {
