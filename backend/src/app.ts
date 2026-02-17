@@ -3,7 +3,9 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import swaggerUi from 'swagger-ui-express';
 import { config, validateConfig } from './config';
+import { specs } from './config/swagger';
 import { logger } from './utils/logger';
 import routes from './routes';
 
@@ -61,6 +63,15 @@ if (!config.server.isProduction) {
 /**
  * API Routes
  */
+// Swagger documentation
+app.use('/api-docs', swaggerUi.serve);
+app.get('/api-docs', swaggerUi.setup(specs, {
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayOperationId: true,
+  },
+}));
+
 app.use('/api', routes);
 
 /**
@@ -107,3 +118,7 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 
 export default app;
 
+/**
+ * Export app for socket.io integration
+ */
+export { app };

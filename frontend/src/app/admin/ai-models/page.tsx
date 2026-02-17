@@ -27,11 +27,21 @@ import { useToast } from '@/components/ui/Toast';
 import { adminApi } from '@/lib/api';
 import { AIModel } from '@/types';
 
+// Model categories / 模型分类
+// Different categories have different API endpoints / 不同分类有不同的API端点
+type ModelCategory = 'CHAT' | 'TTS' | 'STT' | 'EMBEDDING' | 'MULTIMODAL';
+
 interface ModelFormData {
   modelId: string;
   name: string;
   provider: string;
+  // Model category - determines API endpoint type / 模型分类 - 决定API端点类型
+  category: ModelCategory;
   description: string;
+  // API Endpoint - API接口地址
+  apiEndpoint: string;
+  // API Key - API密钥
+  apiKey: string;
   isDefault: boolean;
   isActive: boolean;
   config: {
@@ -48,11 +58,48 @@ interface TestResult {
   error?: string;
 }
 
+// Category info with labels and default API endpoints
+// 分类信息，包含标签和默认API端点
+// NOTE: apiEndpoint should ONLY contain the base URL, NOT the full path
+// apiEndpoint 只应包含基础URL，不要包含完整路径
+// The endpoint path (e.g., /chat/completions) is appended by backend aiService
+// 端点路径（如 /chat/completions）由后端 aiService 自动追加
+const CATEGORY_INFO: Record<ModelCategory, { label: string; description: string; defaultEndpoint: string }> = {
+  CHAT: { 
+    label: 'Chat / 对话', 
+    description: 'Text chat models / 文本对话模型',
+    defaultEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+  },
+  TTS: { 
+    label: 'TTS / 语音合成', 
+    description: 'Text-to-Speech models / 语音合成模型',
+    defaultEndpoint: 'https://dashscope.aliyuncs.com/api/v1'
+  },
+  STT: { 
+    label: 'STT / 语音转文字', 
+    description: 'Speech-to-Text models / 语音识别模型',
+    defaultEndpoint: 'wss://dashscope.aliyuncs.com/api-ws/v1/realtime'
+  },
+  EMBEDDING: { 
+    label: 'Embedding / 向量', 
+    description: 'Vector embedding models / 向量嵌入模型',
+    defaultEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+  },
+  MULTIMODAL: { 
+    label: 'Multimodal / 多模态', 
+    description: 'Multimodal models / 多模态模型',
+    defaultEndpoint: 'https://dashscope.aliyuncs.com/api/v1/services/embeddings/multimodal-embedding'
+  },
+};
+
 const initialFormData: ModelFormData = {
   modelId: '',
   name: '',
   provider: '',
+  category: 'CHAT',
   description: '',
+  apiEndpoint: '',
+  apiKey: '',
   isDefault: false,
   isActive: true,
   config: {
@@ -101,13 +148,21 @@ export default function AdminAIModelsPage() {
   };
 
   // Open form for editing model
+  // 打开编辑模型表单
   const handleEdit = (model: AIModel) => {
     const config = model.config as { temperature?: number; maxTokens?: number } | undefined;
+    // 从模型中读取 apiEndpoint, apiKey, category（如果存在）
+    const modelAny = model as AIModel & { apiEndpoint?: string; apiKey?: string; category?: ModelCategory };
     setFormData({
       modelId: model.modelId,
       name: model.name,
       provider: model.provider,
+      // 读取分类 / Read category
+      category: modelAny.category || 'CHAT',
       description: model.description || '',
+      // 读取API配置 / Read API configuration
+      apiEndpoint: modelAny.apiEndpoint || '',
+      apiKey: '', // API Key 不回显，保持空白让用户重新输入 / Don't echo API Key for security
       isDefault: model.isDefault || false,
       isActive: model.isActive !== false,
       config: config ? {
@@ -120,16 +175,36 @@ export default function AdminAIModelsPage() {
   };
 
   // Save model
+  // 保存模型
   const handleSave = async () => {
     try {
       setSaving(true);
       
+      // 构建保存数据，包含分类和非空的API配置
+      // Build save data, include category and non-empty API config
+      const saveData = {
+        modelId: formData.modelId,
+        name: formData.name,
+        provider: formData.provider,
+        // Include category / 包含分类
+        category: formData.category,
+        description: formData.description,
+        isDefault: formData.isDefault,
+        isActive: formData.isActive,
+        config: formData.config,
+        // 只有非空时才传递 apiEndpoint / Only pass apiEndpoint if not empty
+        apiEndpoint: formData.apiEndpoint.trim() || undefined,
+        // 只有非空时才传递 apiKey（编辑时留空表示不更改）
+        // Only pass apiKey if not empty (empty means keep current when editing)
+        apiKey: formData.apiKey.trim() || undefined,
+      };
+      
       if (editingId) {
-        await adminApi.updateAIModel(editingId, formData);
-        showToast('AI model updated successfully', 'success');
+        await adminApi.updateAIModel(editingId, saveData);
+        showToast('AI model updated successfully / AI模型更新成功', 'success');
       } else {
-        await adminApi.createAIModel(formData);
-        showToast('AI model created successfully', 'success');
+        await adminApi.createAIModel(saveData);
+        showToast('AI model created successfully / AI模型创建成功', 'success');
       }
       
       setShowForm(false);
@@ -138,7 +213,7 @@ export default function AdminAIModelsPage() {
       fetchModels();
     } catch (error) {
       console.error('Failed to save AI model:', error);
-      showToast('Failed to save AI model', 'error');
+      showToast('Failed to save AI model / 保存AI模型失败', 'error');
     } finally {
       setSaving(false);
     }
@@ -248,6 +323,29 @@ export default function AdminAIModelsPage() {
     }
   };
 
+  // Get category badge color / 获取分类徽章颜色
+  const getCategoryColor = (category: string) => {
+    switch (category) {
+      case 'CHAT':
+        return 'bg-indigo-100 text-indigo-700';
+      case 'TTS':
+        return 'bg-pink-100 text-pink-700';
+      case 'STT':
+        return 'bg-cyan-100 text-cyan-700';
+      case 'EMBEDDING':
+        return 'bg-amber-100 text-amber-700';
+      case 'MULTIMODAL':
+        return 'bg-violet-100 text-violet-700';
+      default:
+        return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  // Get category label / 获取分类标签
+  const getCategoryLabel = (category: string) => {
+    return CATEGORY_INFO[category as ModelCategory]?.label || category;
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -293,9 +391,17 @@ export default function AdminAIModelsPage() {
                   </CardTitle>
                   <p className="text-sm text-gray-500 mt-1">{model.modelId}</p>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getProviderColor(model.provider)}`}>
-                  {model.provider}
-                </span>
+                <div className="flex flex-col gap-1 items-end">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getProviderColor(model.provider)}`}>
+                    {model.provider}
+                  </span>
+                  {/* Category badge / 分类徽章 */}
+                  {(model as AIModel & { category?: string }).category && (
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getCategoryColor((model as AIModel & { category?: string }).category || 'CHAT')}`}>
+                      {getCategoryLabel((model as AIModel & { category?: string }).category || 'CHAT')}
+                    </span>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -461,6 +567,71 @@ export default function AdminAIModelsPage() {
                   <option value="Other">Other</option>
                 </select>
               </div>
+
+              {/* Category - 模型分类 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Category / 分类 *
+                </label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => {
+                    const newCategory = e.target.value as ModelCategory;
+                    setFormData({ 
+                      ...formData, 
+                      category: newCategory,
+                      // Auto-fill API endpoint based on category / 根据分类自动填充API端点
+                      apiEndpoint: formData.apiEndpoint || CATEGORY_INFO[newCategory].defaultEndpoint,
+                    });
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  {(Object.keys(CATEGORY_INFO) as ModelCategory[]).map((cat) => (
+                    <option key={cat} value={cat}>
+                      {CATEGORY_INFO[cat].label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {CATEGORY_INFO[formData.category].description}
+                </p>
+              </div>
+
+              {/* API Endpoint - API接口地址 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  API Endpoint
+                  <span className="text-gray-400 font-normal ml-1">(可选 / Optional)</span>
+                </label>
+                <Input
+                  value={formData.apiEndpoint}
+                  onChange={(e) => setFormData({ ...formData, apiEndpoint: e.target.value })}
+                  placeholder="e.g., https://api.openai.com/v1"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  留空则使用系统默认配置 / Leave empty to use system default
+                </p>
+              </div>
+
+              {/* API Key - API密钥 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  API Key
+                  <span className="text-gray-400 font-normal ml-1">(可选 / Optional)</span>
+                </label>
+                <Input
+                  type="password"
+                  value={formData.apiKey}
+                  onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
+                  placeholder={editingId ? "输入新密钥或留空保持不变" : "e.g., sk-xxxxxxxxxxxxxxxx"}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {editingId 
+                    ? "编辑时留空表示不更改 / Leave empty to keep current key" 
+                    : "留空则使用系统默认配置 / Leave empty to use system default"}
+                </p>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Description

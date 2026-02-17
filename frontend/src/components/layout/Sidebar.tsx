@@ -14,20 +14,9 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
-  Bot,
   UserCircle,
-  ScrollText,
-  Newspaper,
-  Bell,
-  ShoppingCart,
-  Crown,
-  Puzzle,
-  Image,
-  Shield,
-  Languages,
-  CreditCard,
-  LogIn,
-  HardDrive,
+  Package,
+  Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -47,26 +36,16 @@ const userNavItems = [
   { href: ROUTES.PROFILE, label: 'Profile', icon: User },
 ];
 
+// Admin navigation items - Only keep core features / 管理员导航菜单 - 只保留核心功能
+// Overview, Scenarios, Personas, Products, Users, Statistics, RAG
 const adminNavItems = [
   { href: ROUTES.ADMIN, label: 'Overview', icon: LayoutDashboard },
   { href: ROUTES.ADMIN_SCENARIOS, label: 'Scenarios', icon: FileText },
+  { href: ROUTES.ADMIN_PERSONAS, label: 'Personas', icon: UserCircle },
+  { href: '/admin/products', label: 'Products', icon: Package },
+  { href: '/admin/rag', label: 'RAG Documents', icon: Database },
   { href: ROUTES.ADMIN_USERS, label: 'Users', icon: Users },
   { href: ROUTES.ADMIN_STATISTICS, label: 'Statistics', icon: BarChart3 },
-  { href: ROUTES.ADMIN_AI_MODELS, label: 'AI Models', icon: Bot },
-  { href: ROUTES.ADMIN_PERSONAS, label: 'Personas', icon: UserCircle },
-  { href: ROUTES.ADMIN_ARTICLES, label: 'Articles', icon: Newspaper },
-  { href: ROUTES.ADMIN_NOTIFICATIONS, label: 'Notifications', icon: Bell },
-  { href: ROUTES.ADMIN_ORDERS, label: 'Orders', icon: ShoppingCart },
-  { href: ROUTES.ADMIN_MEMBERSHIP, label: 'Membership', icon: Crown },
-  { href: ROUTES.ADMIN_PLUGINS, label: 'Plugins', icon: Puzzle },
-  { href: ROUTES.ADMIN_MEDIA, label: 'Media', icon: Image },
-  { href: ROUTES.ADMIN_ROLES, label: 'Roles', icon: Shield },
-  { href: ROUTES.ADMIN_LANGUAGES, label: 'Languages', icon: Languages },
-  { href: ROUTES.ADMIN_PAYMENT, label: 'Payment', icon: CreditCard },
-  { href: ROUTES.ADMIN_LOGIN_CONFIG, label: 'Login Config', icon: LogIn },
-  { href: ROUTES.ADMIN_STORAGE, label: 'Storage', icon: HardDrive },
-  { href: ROUTES.ADMIN_LOGS, label: 'Logs', icon: ScrollText },
-  { href: ROUTES.ADMIN_SETTINGS, label: 'Settings', icon: Settings },
 ];
 
 export function Sidebar({ isOpen, onToggle, isCollapsed, onCollapse }: SidebarProps) {

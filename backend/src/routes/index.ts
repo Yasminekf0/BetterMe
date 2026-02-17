@@ -10,6 +10,8 @@ import systemRoutes from './system';
 import articleRoutes from './articles';
 import notificationRoutes from './notifications';
 import orderRoutes from './orders';
+import ragRoutes from './rag';
+import conversationRoutes from './conversations';
 
 const router = Router();
 
@@ -40,6 +42,10 @@ router.use('/system', systemRoutes);
 router.use('/articles', articleRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/orders', orderRoutes);
+router.use('/conversations', conversationRoutes);
+
+// RAG routes (admin) / RAG路由（管理员）
+router.use('/admin/rag', ragRoutes);
 
 export default router;
 

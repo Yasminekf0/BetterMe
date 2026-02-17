@@ -7,7 +7,9 @@ import {
   toggleLoginConfig,
   // Storage Config
   getStorageConfigs,
+  getStorageStats,
   updateStorageConfig,
+  testOSSConnection,
   // Media
   getMedia,
   deleteMediaItem,
@@ -67,7 +69,9 @@ router.put('/login-configs/:provider/toggle', toggleLoginConfig);
 
 // ==================== Storage Configuration ====================
 router.get('/storage-configs', getStorageConfigs);
+router.get('/storage-configs/stats', getStorageStats);
 router.put('/storage-configs', updateStorageConfig);
+router.post('/storage-configs/test-oss', testOSSConnection);
 
 // ==================== Media Management ====================
 router.get('/media', getMedia);

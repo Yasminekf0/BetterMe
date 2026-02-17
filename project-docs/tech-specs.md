@@ -18,10 +18,12 @@
 
 ### AI服务 AI Services
 - **LLM**: 通义千问 (Tongyi Qianwen)
+- **ASR/STT**: qwen3-asr-flash-realtime (Voice to Text)
 - **场景**: 
   - 角色扮演对话
   - 反馈评估
   - 邮件生成
+  - 语音转文字
 
 ### 数据库 Database
 - **主数据库**: PostgreSQL (ApsaraDB)
@@ -285,15 +287,26 @@ interface SystemSetting {
 ```typescript
 interface AIModel {
   id: string;
-  modelId: string;        // e.g., 'gpt-4o', 'claude-3-sonnet'
+  modelId: string;        // e.g., 'gpt-4o', 'claude-3-sonnet', 'qwen3-asr-flash-realtime'
   name: string;
   provider: string;       // e.g., 'OpenAI', 'Anthropic', 'Alibaba'
   description?: string;
+  type?: AIModelType;     // e.g., 'CHAT', 'TTS', 'STT', 'EMBEDDING'
+  apiEndpoint?: string;   // Custom API endpoint / 自定义API地址
+  apiKey?: string;        // Custom API key / 自定义API密钥
   isDefault: boolean;
   isActive: boolean;
   config?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// AI Model Types / AI模型类型
+enum AIModelType {
+  CHAT = 'CHAT',           // Text chat model / 文本对话模型
+  TTS = 'TTS',             // Text-to-Speech model / 语音合成模型
+  STT = 'STT',             // Speech-to-Text model / 语音转文字模型 (Voice to Text / ASR)
+  EMBEDDING = 'EMBEDDING', // Embedding/Vector model / 向量模型
 }
 ```
 
